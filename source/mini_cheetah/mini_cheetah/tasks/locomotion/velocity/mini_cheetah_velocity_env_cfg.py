@@ -20,12 +20,15 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import mini_cheetah.tasks.locomotion.velocity.mdp as mdp
+import mini_cheetah.tasks.locomotion.velocity.utils as utils
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
+import os
+import dha
 
 ##
 # Scene definition
@@ -249,6 +252,10 @@ class RewardsCfg:
         func=mdp.base_height_l2,
         weight=-0.9,
         params={"asset_cfg": SceneEntityCfg("robot", body_names=["base"]), "target_height": 0.35}, # "target": 0.35         target not a param of base_pos_z
+    )
+    latent_quadratic_penalty = RewTerm(
+        func=mdp.latent_quadratic_penalty,
+        weight=-1.0,
     )
     # -- optional penalties
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
