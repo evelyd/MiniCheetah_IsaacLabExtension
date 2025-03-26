@@ -1,7 +1,6 @@
 import gymnasium as gym
 
 from . import agents, flat_env_cfg, rough_env_cfg
-from mini_cheetah.tasks.locomotion.velocity.latent_model_env import MiniCheetahModelEnv
 
 ##
 # Register Gym environments.
@@ -9,7 +8,7 @@ from mini_cheetah.tasks.locomotion.velocity.latent_model_env import MiniCheetahM
 
 gym.register(
     id="Template-Isaac-Velocity-Flat-MiniCheetah-v0",
-    entry_point="tasks.locomotion.velocity.velocity_model_env:MiniCheetahModelEnv",
+    entry_point="mini_cheetah.tasks.locomotion.velocity.latent_model_env:MiniCheetahModelEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.MiniCheetahFlatEnvCfg,
@@ -19,7 +18,7 @@ gym.register(
 
 gym.register(
     id="Template-Isaac-Velocity-Flat-MiniCheetah-Play-v0",
-    entry_point="tasks.locomotion.velocity.velocity_model_env:MiniCheetahModelEnv",
+    entry_point="mini_cheetah.tasks.locomotion.velocity.latent_model_env:MiniCheetahModelEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.MiniCheetahFlatEnvCfg_PLAY,
@@ -29,7 +28,7 @@ gym.register(
 
 gym.register(
     id="Template-Isaac-Velocity-Rough-MiniCheetah-v0",
-    entry_point="tasks.locomotion.velocity.velocity_model_env:MiniCheetahModelEnv",
+    entry_point="mini_cheetah.tasks.locomotion.velocity.latent_model_env:MiniCheetahModelEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": rough_env_cfg.MiniCheetahRoughEnvCfg,
@@ -39,7 +38,7 @@ gym.register(
 
 gym.register(
     id="Template-Isaac-Velocity-Rough-MiniCheetah-Play-v0",
-    entry_point="tasks.locomotion.velocity.velocity_model_env:MiniCheetahModelEnv",
+    entry_point="mini_cheetah.tasks.locomotion.velocity.latent_model_env:MiniCheetahModelEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": rough_env_cfg.MiniCheetahRoughEnvCfg_PLAY,

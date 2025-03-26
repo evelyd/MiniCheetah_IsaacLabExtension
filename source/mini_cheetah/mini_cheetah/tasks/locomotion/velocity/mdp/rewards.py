@@ -68,15 +68,23 @@ def latent_quadratic_penalty(
 
     Weighting matrices are introduced for each component of this reward.
     """
+
+    # Create a mapping from current joint order to morphosymm order
+    joint_order_indices = [env.usd_joint_order.index(joint) for joint in env.joint_order_for_morphosymm]
+
     # Compose the state vector as: x = [q, \dot q, z, v, o, omega] \in \mathbb R^{46}
     # the values are taken directly from the PolicyCfg
     joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env)
-    #TODO check the joint order bc it might be different from that of the DHA code
-    cos_q_js, sin_q_js = torch.cos(joint_pos), torch.sin(joint_pos)
-    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
+    # Reorder joint positions
+    joint_pos_reordered = joint_pos[:, joint_order_indices]
+    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format
+    cos_q_js, sin_q_js = torch.cos(joint_pos_reordered), torch.sin(joint_pos_reordered)
     q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
     joint_pos_parametrized = q_js_unit_circle_t.reshape(q_js_unit_circle_t.shape[0], -1)
     joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)).func(env)
+    # Reorder joint velocities
+    joint_vel = joint_vel[:, joint_order_indices]
+    # Get the base pose info
     base_z = ObsTerm(func=mdp.base_pos_z, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env) # noise set to same as joint pos
     base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)).func(env)
     base_quat = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env) # noise set to same as joint pos
@@ -88,26 +96,29 @@ def latent_quadratic_penalty(
     x = torch.cat([joint_pos_parametrized, joint_vel, base_z, base_lin_vel, base_euler_angles, base_ang_vel], dim=1)
 
     # Get latent state
-    print(env.model)
+    symmetric_x = env.shared_model.state_type(x)
+    s = env.shared_model.obs_fn(symmetric_x).tensor
+    # print(f"[INFO] latent state: {s}")
+
+    #TODO get the reference state
+
+    # TODO get the reference latent state
 
     # Define the action vector
     u = ObsTerm(func=mdp.last_action).func(env)
     # Define Q and R weight matrices
-    state_dim = x.shape[1]
+    state_dim = s.shape[1]
     action_dim = u.shape[1]
-    print(f"state_dim: {state_dim}, action_dim: {action_dim}")
+    # print(f"[INFO] state_dim: {state_dim}, action_dim: {action_dim}")
+
+    # TODO get the reference input
 
     Q = torch.eye(state_dim).to(env.device)
     R = torch.eye(action_dim).to(env.device)
 
-    print(f"Q dim: {Q.shape}, R dim: {R.shape}")
-    print(f"x dim: {x.shape}, u dim: {u.shape}")
+    # print(f"Q dim: {Q.shape}, R dim: {R.shape}")
     # Compute the reward (positive, the weight will be negative)
-    reward = torch.sum(torch.einsum('bi,ij,bj->b', x, Q, x) + torch.einsum('bi,ij,bj->b', u, R, u))
-    print(reward)
-    rew_test = torch.matmul(torch.matmul(x.T, Q), x) + torch.matmul(torch.matmul(u.T, R), u)
-    print(rew_test)
-    assert torch.allclose(reward, rew_test), "Reward and rew_test are not equal"
-    input("reward computed correctly")
+    reward = torch.sum(torch.einsum('bi,ij,bj->b', s, Q, s) + torch.einsum('bi,ij,bj->b', u, R, u))
+    # print(f"[INFO] reward: {reward}")
 
     return reward

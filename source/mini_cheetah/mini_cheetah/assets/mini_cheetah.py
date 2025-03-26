@@ -22,20 +22,6 @@ from pathlib import Path
 # Configuration
 ##
 
-ALL_JOINTS = ["torso_to_abduct_fr_j",
-              "abduct_fr_to_thigh_fr_j",
-              "thigh_fr_to_knee_fr_j", # front right leg
-              "torso_to_abduct_fl_j",
-              "abduct_fl_to_thigh_fl_j",
-              "thigh_fl_to_knee_fl_j", # front left leg
-              "torso_to_abduct_hr_j",
-              "abduct_hr_to_thigh_hr_j",
-              "thigh_hr_to_knee_hr_j", # hind right leg
-              "torso_to_abduct_hl_j",
-              "abduct_hl_to_thigh_hl_j",
-              "thigh_hl_to_knee_hl_j", # hind left leg
-              ]
-
 class MiniCheetahCfgBuilder:
     @staticmethod
     def build_robot_cfg(
