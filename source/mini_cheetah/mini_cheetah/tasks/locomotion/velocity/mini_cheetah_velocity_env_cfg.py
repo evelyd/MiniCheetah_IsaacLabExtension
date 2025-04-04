@@ -22,6 +22,8 @@ from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 import mini_cheetah.tasks.locomotion.velocity.mdp as mdp
 import mini_cheetah.tasks.locomotion.velocity.utils as utils
 
+from .mutable_command import ReferenceVelocityCommandCfg, ReferenceVelocityCommand
+
 ##
 # Pre-defined configs
 ##
@@ -90,7 +92,8 @@ class MySceneCfg(InteractiveSceneCfg):
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    base_velocity = mdp.UniformVelocityCommandCfg(
+    base_velocity = ReferenceVelocityCommandCfg(
+        class_type=ReferenceVelocityCommand,
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
         rel_standing_envs=0.02,
@@ -98,7 +101,7 @@ class CommandsCfg:
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
+        ranges=ReferenceVelocityCommandCfg.Ranges(
             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
     )
@@ -130,12 +133,10 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5))
         actions = ObsTerm(func=mdp.last_action)
-        height_scan = ObsTerm(
-            func=mdp.height_scan,
-            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
-            noise=Unoise(n_min=-0.1, n_max=0.1),
-            clip=(-1.0, 1.0),
-        )
+
+        # My additions
+        base_z = ObsTerm(func=mdp.base_pos_z, noise=Unoise(n_min=-0.01, n_max=0.01))
+        base_quat = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.01, n_max=0.01))
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -222,6 +223,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
+    #TODO these represent the u reward term when u is def'd as the desired velocity
     # track_lin_vel_xy_exp = RewTerm(
     #     func=mdp.track_lin_vel_xy_exp, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     # )
@@ -243,19 +245,18 @@ class RewardsCfg:
     #         "threshold": 0.5,
     #     },
     # )
-    # undesired_contacts = RewTerm(
-    #     func=mdp.undesired_contacts,
-    #     weight=-1.0,
-    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*thigh"), "threshold": 1.0},
-    # )
+    undesired_contacts = RewTerm(
+        func=mdp.undesired_contacts,
+        weight=-100.0,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*thigh"), "threshold": 1.0},
+    )
     # base_height_l2 = RewTerm(
     #     func=mdp.base_height_l2,
     #     weight=-0.9,
     #     params={"asset_cfg": SceneEntityCfg("robot", body_names=["base"]), "target_height": 0.35}, # "target": 0.35         target not a param of base_pos_z
-    # )
-    latent_quadratic_penalty = RewTerm(
-        func=mdp.latent_quadratic_penalty,
-        weight=-1.0,
+    latent_penalty_l2 = RewTerm(
+        func=mdp.latent_penalty_l2,
+        weight=-0.01,
     )
     # -- optional penalties
     # flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)

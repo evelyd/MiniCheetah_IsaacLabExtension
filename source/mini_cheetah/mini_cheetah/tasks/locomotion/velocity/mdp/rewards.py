@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import torch
 from typing import TYPE_CHECKING
+import sys
+import os
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
@@ -59,7 +61,7 @@ def feet_air_time_positive_biped(
     reward *= torch.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
     return reward
 
-def latent_quadratic_penalty(
+def latent_penalty_l2(
     env: ManagerBasedRLEnv
 ) -> torch.Tensor:
     """Penalizes the agent for deviations from the desired state and for taking large actions.
@@ -72,53 +74,44 @@ def latent_quadratic_penalty(
     # Create a mapping from current joint order to morphosymm order
     joint_order_indices = [env.usd_joint_order.index(joint) for joint in env.joint_order_for_morphosymm]
 
-    # Compose the state vector as: x = [q, \dot q, z, v, o, omega] \in \mathbb R^{46}
-    # the values are taken directly from the PolicyCfg
-    joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env)
-    # Reorder joint positions
-    joint_pos_reordered = joint_pos[:, joint_order_indices]
-    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format
-    cos_q_js, sin_q_js = torch.cos(joint_pos_reordered), torch.sin(joint_pos_reordered)
-    q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
-    joint_pos_parametrized = q_js_unit_circle_t.reshape(q_js_unit_circle_t.shape[0], -1)
-    joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-1.5, n_max=1.5)).func(env)
-    # Reorder joint velocities
-    joint_vel = joint_vel[:, joint_order_indices]
-    # Get the base pose info
-    base_z = ObsTerm(func=mdp.base_pos_z, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env) # noise set to same as joint pos
-    base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.1, n_max=0.1)).func(env)
-    base_quat = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.01, n_max=0.01)).func(env) # noise set to same as joint pos
-    #Convert base quat to euler angles
-    base_euler_angles = utils.quat_to_euler_torch(base_quat)
-    base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2)).func(env)
-
-    # Concatenate all these states into a single state vector
-    x = torch.cat([joint_pos_parametrized, joint_vel, base_z, base_lin_vel, base_euler_angles, base_ang_vel], dim=1)
+    # Check that the size of env.obs_buf['policy'] and env.ref_trajectories is the same
+    x, u = utils.get_state_action_from_obs(env.obs_buf['policy'], joint_order_indices)
 
     # Get latent state
     symmetric_x = env.shared_model.state_type(x)
     s = env.shared_model.obs_fn(symmetric_x).tensor
-    # print(f"[INFO] latent state: {s}")
 
-    #TODO get the reference state
+    # Extract the reference observations at the current timestep for each environment
+    script_name = os.path.basename(os.path.abspath(sys.argv[0]))
+    if "play" not in script_name:
+        ref_obs = env.ref_trajectories
+        print("Max timestep value: ", torch.max(env.current_timesteps), " number of envs with that value: ", torch.sum(env.current_timesteps == torch.max(env.current_timesteps)))
+        ref_obs_current = torch.vstack([ref_obs[env.current_timesteps[i], i, :].squeeze() for i in range(env.current_timesteps.shape[0])])
 
-    # TODO get the reference latent state
+        # Get the reference latent state
+        x_r, u_r = utils.get_state_action_from_obs(ref_obs_current, joint_order_indices)
+        symmetric_x_r = env.shared_model.state_type(x_r)
+        s_r = env.shared_model.obs_fn(symmetric_x_r).tensor
 
-    # Define the action vector
-    u = ObsTerm(func=mdp.last_action).func(env)
-    # Define Q and R weight matrices
-    state_dim = s.shape[1]
-    action_dim = u.shape[1]
-    # print(f"[INFO] state_dim: {state_dim}, action_dim: {action_dim}")
+        # Get the differences
+        s_diff = s - s_r
+        u_diff = u - u_r
 
-    # TODO get the reference input
+        # Define Q and R weight matrices
+        state_dim = s.shape[1]
+        action_dim = u.shape[1]
+        Q = 0.1 * torch.eye(state_dim).to(env.device)
+        R = torch.eye(action_dim).to(env.device)
 
-    Q = torch.eye(state_dim).to(env.device)
-    R = torch.eye(action_dim).to(env.device)
+        # Compute the reward (positive, the weight will be negative)
+        state_rew_component = torch.einsum('bi,ij,bj->b', s_diff, Q, s_diff)
+        action_rew_component = torch.einsum('bi,ij,bj->b', u_diff, R, u_diff)
+        reward = state_rew_component + action_rew_component
 
-    # print(f"Q dim: {Q.shape}, R dim: {R.shape}")
-    # Compute the reward (positive, the weight will be negative)
-    reward = torch.sum(torch.einsum('bi,ij,bj->b', s, Q, s) + torch.einsum('bi,ij,bj->b', u, R, u))
-    # print(f"[INFO] reward: {reward}")
+        # Step the current timesteps
+        env.update_current_timesteps(env.reset_buf)
+
+    else:
+        reward = 0
 
     return reward

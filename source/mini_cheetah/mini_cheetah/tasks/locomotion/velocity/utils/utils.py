@@ -11,6 +11,43 @@ from morpho_symm.utils.rep_theory_utils import group_rep_from_gens
 import escnn
 from escnn.nn import FieldType
 
+def get_state_action_from_obs(obs, joint_order_indices):
+    """
+    Takes an observation from the observation class and extracts the system state and action vectors.
+
+    Puts the state in the correct form for use in the eDAE model.
+
+    State vector is composed as: $x = [q, \dot q, z, v, o, \omega] \in \mathbb R^{46}$
+    """
+    base_lin_vel = obs[:, :3]
+    base_ang_vel = obs[:, 3:6]
+
+    # Get the joint positions and velocities
+    joint_pos = obs[:, 12:24]
+    # Reorder joint positions
+    joint_pos_reordered = joint_pos[:, joint_order_indices]
+    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format
+    cos_q_js, sin_q_js = torch.cos(joint_pos_reordered), torch.sin(joint_pos_reordered)
+    q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
+    joint_pos_parametrized = q_js_unit_circle_t.reshape(q_js_unit_circle_t.shape[0], -1)
+    joint_vel = obs[:, 24:36]
+    # Reorder joint velocities
+    joint_vel = joint_vel[:, joint_order_indices]
+
+    # Get the base pose info
+    base_z = obs[:, 48]
+    base_quat = obs[:, 49:53]
+    #Convert base quat to euler angles
+    base_euler_angles = quat_to_euler_torch(base_quat)
+
+    # Concatenate all these states into a single state vector
+    base_z = base_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
+    x = torch.cat([joint_pos_parametrized, joint_vel, base_z, base_lin_vel, base_euler_angles, base_ang_vel], dim=1)
+
+    u = obs[:, 36:48]
+
+    return x, u
+
 def quat_to_euler_torch(quaternions):
     """
     Converts quaternions to Euler angles (XYZ convention) using PyTorch.
