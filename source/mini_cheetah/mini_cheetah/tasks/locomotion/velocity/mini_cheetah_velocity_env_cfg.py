@@ -87,7 +87,7 @@ class MySceneCfg(InteractiveSceneCfg):
 # MDP settings
 ##
 
-
+# Need this one for train
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
@@ -106,6 +106,25 @@ class CommandsCfg:
         ),
     )
 
+# TODO find a solution that works for both train and play
+# Need this one for play
+# @configclass
+# class CommandsCfg:
+#     """Command specifications for the MDP."""
+
+#     base_velocity = mdp.UniformVelocityCommandCfg(
+#         class_type=mdp.UniformVelocityCommand,
+#         asset_name="robot",
+#         resampling_time_range=(10.0, 10.0),
+#         rel_standing_envs=0.02,
+#         rel_heading_envs=1.0,
+#         heading_command=True,
+#         heading_control_stiffness=0.5,
+#         debug_vis=True,
+#         ranges=mdp.UniformVelocityCommandCfg.Ranges(
+#             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+#         ),
+#     )
 
 @configclass
 class ActionsCfg:
@@ -224,12 +243,12 @@ class RewardsCfg:
 
     # -- task
     #TODO these represent the u reward term when u is def'd as the desired velocity
-    # track_lin_vel_xy_exp = RewTerm(
-    #     func=mdp.track_lin_vel_xy_exp, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
-    # )
-    # track_ang_vel_z_exp = RewTerm(
-    #     func=mdp.track_ang_vel_z_exp, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
-    # )
+    track_lin_vel_xy_exp = RewTerm(
+        func=mdp.track_lin_vel_xy_exp, weight=10.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    )
+    track_ang_vel_z_exp = RewTerm(
+        func=mdp.track_ang_vel_z_exp, weight=10.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
+    )
     # -- penalties
     # lin_vel_z_l2 = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     # ang_vel_xy_l2 = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
@@ -245,11 +264,11 @@ class RewardsCfg:
     #         "threshold": 0.5,
     #     },
     # )
-    undesired_contacts = RewTerm(
-        func=mdp.undesired_contacts,
-        weight=-100.0,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*thigh"), "threshold": 1.0},
-    )
+    # undesired_contacts = RewTerm(
+    #     func=mdp.undesired_contacts,
+    #     weight=-100.0,
+    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*thigh"), "threshold": 1.0},
+    # )
     # base_height_l2 = RewTerm(
     #     func=mdp.base_height_l2,
     #     weight=-0.9,
@@ -261,6 +280,12 @@ class RewardsCfg:
     # -- optional penalties
     # flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=0.0)
     # dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=0.0)
+
+    # -- additional rewards
+    is_alive = RewTerm(
+        func=mdp.is_alive,
+        weight=5.0,
+    )
 
 
 @configclass

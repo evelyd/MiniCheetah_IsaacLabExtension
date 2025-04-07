@@ -32,9 +32,11 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
         self.model_path = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/"
         self._load_model()
         print(f"[INFO] Created MiniCheetahModelEnv")
-        from .mutable_command import MutableCommandManager  # Local import to avoid circular import
-        self.command_manager: MutableCommandManager = MutableCommandManager(self.cfg.commands, self)
-        print("[INFO] Set the Command Manager: ", self.command_manager)
+
+        if "play" not in script_name: # TODO implement trajectory loading also in play mode
+            from .mutable_command import MutableCommandManager  # Local import to avoid circular import
+            self.command_manager: MutableCommandManager = MutableCommandManager(self.cfg.commands, self)
+            print("[INFO] Set the Command Manager: ", self.command_manager)
 
     def _load_model(self):
         # Set the eDAE model
@@ -53,6 +55,15 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
 
         # reorganize so that there is no more dict, just obs values
         MiniCheetahModelEnv.ref_trajectories = torch.tensor([traj['obs'] for traj in MiniCheetahModelEnv.ref_trajectories], device=device)
+
+        # fix the dimensions if not the same as the number of environments
+        if MiniCheetahModelEnv.ref_trajectories.shape[0] != num_envs:
+            print(f"[INFO] Reshaping reference trajectories from {MiniCheetahModelEnv.ref_trajectories.shape[1]} to {num_envs}")
+            # sample or repeat the reference trajectories to match the number of environments
+            if MiniCheetahModelEnv.ref_trajectories.shape[1] < num_envs:
+                # repeat the reference trajectories to match the number of environments
+                MiniCheetahModelEnv.ref_trajectories = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, num_envs // MiniCheetahModelEnv.ref_trajectories.shape[1], 1))
+        # check the dimensions of ref_trajectories
         MiniCheetahModelEnv.trajectory_indices = MiniCheetahModelEnv.rng.permutation(num_envs)
 
         # randomly shuffle the reference trajectories according to the seed
@@ -146,7 +157,11 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
 
         # -- update command
         # This is the only line of the step() function that I modified, command manager needs access to the env in order to have the updated ref trajectories for the velocity command
-        self.command_manager.compute(dt=self.step_dt, env=self)
+        script_name = os.path.basename(os.path.abspath(sys.argv[0]))
+        if "play" not in script_name: # TODO implement trajectory loading also in play mode
+            self.command_manager.compute(self.step_dt, self)
+        else:
+            self.command_manager.compute(dt=self.step_dt)
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:

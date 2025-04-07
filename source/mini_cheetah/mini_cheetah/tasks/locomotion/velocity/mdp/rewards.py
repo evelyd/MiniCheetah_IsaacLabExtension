@@ -100,13 +100,13 @@ def latent_penalty_l2(
         # Define Q and R weight matrices
         state_dim = s.shape[1]
         action_dim = u.shape[1]
-        Q = 0.1 * torch.eye(state_dim).to(env.device)
+        Q = torch.eye(state_dim).to(env.device)
         R = torch.eye(action_dim).to(env.device)
 
         # Compute the reward (positive, the weight will be negative)
         state_rew_component = torch.einsum('bi,ij,bj->b', s_diff, Q, s_diff)
-        action_rew_component = torch.einsum('bi,ij,bj->b', u_diff, R, u_diff)
-        reward = state_rew_component + action_rew_component
+        # action_rew_component = torch.einsum('bi,ij,bj->b', u_diff, R, u_diff)
+        reward = state_rew_component # + action_rew_component
 
         # Step the current timesteps
         env.update_current_timesteps(env.reset_buf)
