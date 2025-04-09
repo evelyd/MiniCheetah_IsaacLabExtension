@@ -105,16 +105,16 @@ class MiniCheetahSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                name="FR_calf", prim_path="{ENV_REGEX_NS}/Robot/FR_calf"
+                name="FR_foot", prim_path="{ENV_REGEX_NS}/Robot/FR_foot"
             ),
             FrameTransformerCfg.FrameCfg(
-                name="FL_calf", prim_path="{ENV_REGEX_NS}/Robot/FL_calf"
+                name="FL_foot", prim_path="{ENV_REGEX_NS}/Robot/FL_foot"
             ),
             FrameTransformerCfg.FrameCfg(
-                name="RR_calf", prim_path="{ENV_REGEX_NS}/Robot/RR_calf"
+                name="RR_foot", prim_path="{ENV_REGEX_NS}/Robot/RR_foot"
             ),
             FrameTransformerCfg.FrameCfg(
-                name="RL_calf", prim_path="{ENV_REGEX_NS}/Robot/RL_calf"
+                name="RL_foot", prim_path="{ENV_REGEX_NS}/Robot/RL_foot"
             ),
         ],
         debug_vis=False,
