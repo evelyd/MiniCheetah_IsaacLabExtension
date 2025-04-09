@@ -56,13 +56,24 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
         # reorganize so that there is no more dict, just obs values
         MiniCheetahModelEnv.ref_trajectories = torch.tensor([traj['obs'] for traj in MiniCheetahModelEnv.ref_trajectories], device=device)
 
-        # fix the dimensions if not the same as the number of environments
-        if MiniCheetahModelEnv.ref_trajectories.shape[0] != num_envs:
+        input(f"shape of raw ref traj: {MiniCheetahModelEnv.ref_trajectories.shape}")
+
+        # sample or repeat the reference trajectories to match the number of environments
+        if MiniCheetahModelEnv.ref_trajectories.shape[1] < num_envs:
             print(f"[INFO] Reshaping reference trajectories from {MiniCheetahModelEnv.ref_trajectories.shape[1]} to {num_envs}")
-            # sample or repeat the reference trajectories to match the number of environments
-            if MiniCheetahModelEnv.ref_trajectories.shape[1] < num_envs:
-                # repeat the reference trajectories to match the number of environments
-                MiniCheetahModelEnv.ref_trajectories = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, num_envs // MiniCheetahModelEnv.ref_trajectories.shape[1], 1))
+            # repeat the reference trajectories to match the number of environments
+            num_full_tiles = num_envs // MiniCheetahModelEnv.ref_trajectories.shape[1]
+            remainder = num_envs % MiniCheetahModelEnv.ref_trajectories.shape[1]
+            tiled_ref_trajectories = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, num_full_tiles, 1))
+            if remainder > 0:
+                additional_tile = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, 1, 1))
+                # Concatenate the additional tile and then slice to the required size
+                tiled_ref_trajectories = torch.cat((tiled_ref_trajectories, additional_tile), dim=1)
+                MiniCheetahModelEnv.ref_trajectories = tiled_ref_trajectories[:, :num_envs, :]
+            else:
+                MiniCheetahModelEnv.ref_trajectories = tiled_ref_trajectories
+
+        input(f"shape of reshaped ref traj: {MiniCheetahModelEnv.ref_trajectories.shape}")
         # check the dimensions of ref_trajectories
         MiniCheetahModelEnv.trajectory_indices = MiniCheetahModelEnv.rng.permutation(num_envs)
 
