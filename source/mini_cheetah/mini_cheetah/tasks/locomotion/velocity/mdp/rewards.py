@@ -71,13 +71,10 @@ def latent_penalty_l2(
     Weighting matrices are introduced for each component of this reward.
     """
 
-    # Create a mapping from current joint order to morphosymm order
-    joint_order_indices = [env.usd_joint_order.index(joint) for joint in env.joint_order_for_morphosymm]
+    # Get the current state and action pair
+    x, u = utils.get_state_action_from_obs(env.obs_buf['policy'], env.joint_order_indices)
 
-    # Check that the size of env.obs_buf['policy'] and env.ref_trajectories is the same
-    x, u = utils.get_state_action_from_obs(env.obs_buf['policy'], joint_order_indices)
-
-    # Get latent state
+    # Get current latent state
     symmetric_x = env.shared_model.state_type(x)
     s = env.shared_model.obs_fn(symmetric_x).tensor
 
@@ -88,8 +85,10 @@ def latent_penalty_l2(
         print("Max timestep value: ", torch.max(env.current_timesteps), " number of envs with that value: ", torch.sum(env.current_timesteps == torch.max(env.current_timesteps)))
         ref_obs_current = torch.vstack([ref_obs[env.current_timesteps[i], i, :].squeeze() for i in range(env.current_timesteps.shape[0])])
 
+        # Get the reference state and action pair
+        x_r, u_r = utils.get_state_action_from_obs(ref_obs_current, env.joint_order_indices)
+
         # Get the reference latent state
-        x_r, u_r = utils.get_state_action_from_obs(ref_obs_current, joint_order_indices)
         symmetric_x_r = env.shared_model.state_type(x_r)
         s_r = env.shared_model.obs_fn(symmetric_x_r).tensor
 

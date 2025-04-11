@@ -22,14 +22,14 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
         script_name = os.path.basename(os.path.abspath(sys.argv[0]))
         if "play" not in script_name: # TODO implement trajectory loading also in play mode
             self.package_dir = os.path.abspath(os.path.dirname(mini_cheetah.__file__))
-            self.traj_savepath = "../../../logs/rsl_rl/mini_cheetah_flat/2025-03-26_21-28-50/obs_action_pairs.npy"
-            self.trajectory_path = os.path.join(self.package_dir, self.traj_savepath)
-            MiniCheetahModelEnv.rng = np.random.default_rng(kwargs['cfg'].seed)
-            self._load_trajectories(self.trajectory_path, kwargs['cfg'].scene.num_envs, kwargs['cfg'].sim.device)
+            traj_savepath = kwargs['cfg'].ref_path
+            trajectory_path = os.path.join(kwargs['cfg'].script_dir, traj_savepath)
+            self.rng = np.random.default_rng(kwargs['cfg'].seed)
+            self._load_trajectories(trajectory_path, kwargs['cfg'].scene.num_envs, kwargs['cfg'].sim.device)
             print(f"[INFO] Loaded reference trajectories")
 
         super().__init__(**kwargs)
-        self.model_path = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/"
+        self.model_path = kwargs['cfg'].edae_dir
         self._load_model()
         print(f"[INFO] Created MiniCheetahModelEnv")
 
@@ -38,47 +38,44 @@ class MiniCheetahModelEnv(ManagerBasedRLEnv):
             self.command_manager: MutableCommandManager = MutableCommandManager(self.cfg.commands, self)
             print("[INFO] Set the Command Manager: ", self.command_manager)
 
+        # Create a mapping from current joint order to morphosymm order
+        self.joint_order_indices = [self.usd_joint_order.index(joint) for joint in self.joint_order_for_morphosymm]
+
     def _load_model(self):
         # Set the eDAE model
-        #TODO get the model dir from the cfg
         dha_dir = os.path.dirname(dha.__file__)
         model_dir = os.path.join(dha_dir, self.model_path)
-        MiniCheetahModelEnv.shared_model = utils.get_trained_eDAE_model(model_dir)
-        MiniCheetahModelEnv.shared_model.to(self.device)
-        MiniCheetahModelEnv.shared_model.eval()
-
-        return MiniCheetahModelEnv.shared_model
+        self.shared_model = utils.get_trained_eDAE_model(model_dir)
+        self.shared_model.to(self.device)
+        self.shared_model.eval()
 
     def _load_trajectories(self, traj_savepath, num_envs, device):
-        MiniCheetahModelEnv.ref_trajectories =np.load(traj_savepath, allow_pickle=True)
-        MiniCheetahModelEnv.trajectory_indices = torch.zeros(num_envs, dtype=int)
+        self.ref_trajectories =np.load(traj_savepath, allow_pickle=True)
+        self.trajectory_indices = torch.zeros(num_envs, dtype=int)
 
         # reorganize so that there is no more dict, just obs values
-        MiniCheetahModelEnv.ref_trajectories = torch.tensor([traj['obs'] for traj in MiniCheetahModelEnv.ref_trajectories], device=device)
-
-        input(f"shape of raw ref traj: {MiniCheetahModelEnv.ref_trajectories.shape}")
+        self.ref_trajectories = torch.tensor([traj['obs'] for traj in self.ref_trajectories], device=device)
 
         # sample or repeat the reference trajectories to match the number of environments
-        if MiniCheetahModelEnv.ref_trajectories.shape[1] < num_envs:
-            print(f"[INFO] Reshaping reference trajectories from {MiniCheetahModelEnv.ref_trajectories.shape[1]} to {num_envs}")
+        if self.ref_trajectories.shape[1] < num_envs:
+            print(f"[INFO] Reshaping reference trajectories from {self.ref_trajectories.shape[1]} to {num_envs}")
             # repeat the reference trajectories to match the number of environments
-            num_full_tiles = num_envs // MiniCheetahModelEnv.ref_trajectories.shape[1]
-            remainder = num_envs % MiniCheetahModelEnv.ref_trajectories.shape[1]
-            tiled_ref_trajectories = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, num_full_tiles, 1))
+            num_full_tiles = num_envs // self.ref_trajectories.shape[1]
+            remainder = num_envs % self.ref_trajectories.shape[1]
+            tiled_ref_trajectories = torch.tile(self.ref_trajectories, (1, num_full_tiles, 1))
             if remainder > 0:
-                additional_tile = torch.tile(MiniCheetahModelEnv.ref_trajectories, (1, 1, 1))
+                additional_tile = torch.tile(self.ref_trajectories, (1, 1, 1))
                 # Concatenate the additional tile and then slice to the required size
                 tiled_ref_trajectories = torch.cat((tiled_ref_trajectories, additional_tile), dim=1)
-                MiniCheetahModelEnv.ref_trajectories = tiled_ref_trajectories[:, :num_envs, :]
+                self.ref_trajectories = tiled_ref_trajectories[:, :num_envs, :]
             else:
-                MiniCheetahModelEnv.ref_trajectories = tiled_ref_trajectories
+                self.ref_trajectories = tiled_ref_trajectories
 
-        input(f"shape of reshaped ref traj: {MiniCheetahModelEnv.ref_trajectories.shape}")
         # check the dimensions of ref_trajectories
-        MiniCheetahModelEnv.trajectory_indices = MiniCheetahModelEnv.rng.permutation(num_envs)
+        self.trajectory_indices = self.rng.permutation(num_envs)
 
         # randomly shuffle the reference trajectories according to the seed
-        MiniCheetahModelEnv.ref_trajectories = MiniCheetahModelEnv.ref_trajectories[:, MiniCheetahModelEnv.trajectory_indices, :]
+        self.ref_trajectories = self.ref_trajectories[:, self.trajectory_indices, :]
 
     def update_current_timesteps(self, reset_buf):
         self.current_timesteps += 1

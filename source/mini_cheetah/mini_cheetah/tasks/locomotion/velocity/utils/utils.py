@@ -161,24 +161,25 @@ def get_trained_eDAE_model(model_dir):
     num_layers, num_hidden_units, bias, obs_state_dim = extract_trained_model_info(state_dict)
     obs_fn_params = {'num_layers': num_layers, 'num_hidden_units': num_hidden_units, 'activation': activation, 'bias': bias, 'batch_norm': batch_norm}
 
-    model = EquivDAE(
-        state_rep=state_type.representation,
-        obs_state_dim=obs_state_dim,
-        dt=dt,
-        orth_w=orth_w,
-        obs_fn_params=obs_fn_params,
-        group_avg_trick=group_avg_trick,
-        state_dependent_obs_dyn=state_dependent_obs_dyn,
-        enforce_constant_fn=enforce_constant_fn,
-        # reuse_input_observable=cfg.model.reuse_input_observable,
-    )
+    with torch.device('cuda'):
+        model = EquivDAE(
+            state_rep=state_type.representation,
+            obs_state_dim=obs_state_dim,
+            dt=dt,
+            orth_w=orth_w,
+            obs_fn_params=obs_fn_params,
+            group_avg_trick=group_avg_trick,
+            state_dependent_obs_dyn=state_dependent_obs_dyn,
+            enforce_constant_fn=enforce_constant_fn,
+            # reuse_input_observable=cfg.model.reuse_input_observable,
+        )
 
     model.load_state_dict(remove_state_dict_prefix(state_dict, "model."))
 
     return model
 
 def main():
-    model_dir = "experiments/test/S:forward_minus_0_4-OS:5-G:K4xC2-H:30-EH:30_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/"
+    model_dir = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/"
 
     dha_dir = os.path.dirname(dha.__file__)
     model_dir = os.path.join(dha_dir, model_dir)
