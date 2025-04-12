@@ -111,6 +111,12 @@ class MiniCheetahFlatEnvCfg(DirectRLEnvCfg):
     base_height_reward_scale = -5.0
 
 @configclass
+class MiniCheetahFlatEnvCfg_PLAY(MiniCheetahFlatEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=50, env_spacing=2.5, replicate_physics=True)
+    mode: str = "play"
+
+@configclass
 class MiniCheetahRoughEnvCfg(MiniCheetahFlatEnvCfg):
     # env
     observation_space = 235
@@ -136,3 +142,32 @@ class MiniCheetahRoughEnvCfg(MiniCheetahFlatEnvCfg):
 
     # reward scales (override from flat config)
     flat_orientation_reward_scale = 0.0
+
+@configclass
+class MiniCheetahRoughEnvCfg_PLAY(MiniCheetahRoughEnvCfg):
+    # scene
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=50, env_spacing=2.5, replicate_physics=True)
+
+    mode: str = "play"
+
+    # reduce number of rows and columns for play
+    ROUGH_TERRAINS_CFG.num_rows = 5
+    ROUGH_TERRAINS_CFG.num_cols = 5
+    terrain = TerrainImporterCfg(
+        prim_path="/World/ground",
+        terrain_type="generator",
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        max_init_terrain_level=9,
+        collision_group=-1,
+        physics_material=sim_utils.RigidBodyMaterialCfg(
+            friction_combine_mode="multiply",
+            restitution_combine_mode="multiply",
+            static_friction=1.0,
+            dynamic_friction=1.0,
+        ),
+        visual_material=sim_utils.MdlFileCfg(
+            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+            project_uvw=True,
+        ),
+        debug_vis=False,
+    )
