@@ -54,6 +54,11 @@ class MiniCheetahEnv(DirectRLEnv):
         self._feet_ids, _ = self._contact_sensor.find_bodies(".*foot")
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*thigh", ".*calf")
 
+        # Init the env length buffer at 0 if task is play
+        self.task_mode = cfg.mode
+        if self.task_mode == "play":
+            self.episode_length_buf[:] = torch.zeros_like(self.episode_length_buf)
+
     def _setup_scene(self):
         self._robot = Articulation(self.cfg.robot)
         self.scene.articulations["robot"] = self._robot
@@ -167,7 +172,7 @@ class MiniCheetahEnv(DirectRLEnv):
             env_ids = self._robot._ALL_INDICES
         self._robot.reset(env_ids)
         super()._reset_idx(env_ids)
-        if len(env_ids) == self.num_envs:
+        if not (self.task_mode == "play") and len(env_ids) == self.num_envs:
             # Spread out the resets to avoid spikes in training when many environments reset at a similar time
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
         self._actions[env_ids] = 0.0
