@@ -128,7 +128,25 @@ class ReferenceVelocityCommand(UniformVelocityCommand):
             env.ref_trajectories[env.current_timesteps[i], i, 9:12].squeeze()
             for i in range(env.current_timesteps.shape[0])
         ])
+        print("mutable command:", self._mutable_command.shape)
         self.vel_command_b = self._mutable_command
+
+    def _debug_vis_callback(self, event):
+        # check if robot is initialized
+        # note: this is needed in-case the robot is de-initialized. we can't access the data
+        if not self.robot.is_initialized:
+            return
+        # get marker location
+        # -- base state
+        base_pos_w = self.robot.data.root_pos_w.clone()
+        base_pos_w[:, 2] += 0.5
+        # -- resolve the scales and quaternions
+        print(f"command {self.command[:, :2]} and robot vel {self.robot.data.root_lin_vel_b[:, :2]}")
+        vel_des_arrow_scale, vel_des_arrow_quat = self._resolve_xy_velocity_to_arrow(self.command[:, :2])
+        vel_arrow_scale, vel_arrow_quat = self._resolve_xy_velocity_to_arrow(self.robot.data.root_lin_vel_b[:, :2])
+        # display markers
+        self.goal_vel_visualizer.visualize(base_pos_w, vel_des_arrow_quat, vel_des_arrow_scale)
+        self.current_vel_visualizer.visualize(base_pos_w, vel_arrow_quat, vel_arrow_scale)
 
 class MutableCommandManager(CommandManager):
     """Manager for allowing mutable commands.
