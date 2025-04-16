@@ -51,8 +51,13 @@ class MiniCheetahEnv(DirectRLEnv):
         }
         # Get specific body indices
         self._base_id, _ = self._contact_sensor.find_bodies("trunk")
+        self._hip_ids, _ = self._contact_sensor.find_bodies(".*hip")
         self._feet_ids, _ = self._contact_sensor.find_bodies(".*foot")
-        self._undesired_contact_body_ids, _ = self._contact_sensor.find_bodies(".*thigh", ".*calf")
+        self._thigh_ids, _ = self._contact_sensor.find_bodies(".*thigh")
+        self._calf_ids, _ = self._contact_sensor.find_bodies(".*calf")
+
+        self._illegal_contact_ids = self._hip_ids + self._base_id
+        self._undesired_contact_body_ids = self._thigh_ids + self._calf_ids
 
         # Init the env length buffer at 0 if task is play
         self.task_mode = cfg.mode
@@ -164,7 +169,7 @@ class MiniCheetahEnv(DirectRLEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
         net_contact_forces = self._contact_sensor.data.net_forces_w_history
-        died = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1)
+        died = torch.any(torch.max(torch.norm(net_contact_forces[:, :, self._illegal_contact_ids], dim=-1), dim=1)[0] > 1.0, dim=1)
         return died, time_out
 
     def _reset_idx(self, env_ids: torch.Tensor | None):

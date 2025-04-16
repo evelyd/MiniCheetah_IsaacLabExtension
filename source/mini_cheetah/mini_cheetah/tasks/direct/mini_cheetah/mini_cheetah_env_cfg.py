@@ -58,6 +58,7 @@ class MiniCheetahFlatEnvCfg(DirectRLEnvCfg):
     action_space = 12
     observation_space = 53
     state_space = 0
+    mode: str = "train"
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
@@ -120,6 +121,7 @@ class MiniCheetahFlatEnvCfg_PLAY(MiniCheetahFlatEnvCfg):
 class MiniCheetahRoughEnvCfg(MiniCheetahFlatEnvCfg):
     # env
     observation_space = 235
+    mode: str = "train"
 
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
