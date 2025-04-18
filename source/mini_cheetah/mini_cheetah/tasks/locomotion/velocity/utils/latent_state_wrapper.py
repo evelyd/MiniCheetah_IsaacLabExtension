@@ -10,22 +10,26 @@ import mini_cheetah.tasks.locomotion.velocity.utils as utils
 
 
 class LatentStateActorCritic(ActorCritic):
-    def __init__(self, num_actor_obs, num_critic_obs, num_actions, latent_dim, joint_order_indices, edae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
-
-        # Use the latent state dimensions to initialize the ActorCritic
-        super().__init__(num_actor_obs=latent_dim, num_critic_obs=latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
+    def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, edae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
 
         self.joint_order_indices = joint_order_indices
         self.device = kwargs.get("device", "cpu")
         self.model_path = edae_dir
-        self._load_model()
+        edae_model = self._load_model()
+
+        # Use the latent state dimensions to initialize the ActorCritic
+        latent_dim = edae_model.obs_state_dim
+        super().__init__(num_actor_obs=latent_dim, num_critic_obs=latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
+
+        # Assign the eDAE model to the class
+        self.edae_model = edae_model
 
     def update_distribution(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices)
-            symmetric_x = self.shared_model.state_type(x)
-            s = self.shared_model.obs_fn(symmetric_x).tensor
+            symmetric_x = self.edae_model.state_type(x)
+            s = self.edae_model.obs_fn(symmetric_x).tensor
         mean = self.actor(s)
         # compute standard deviation
         if self.noise_std_type == "scalar":
@@ -41,8 +45,8 @@ class LatentStateActorCritic(ActorCritic):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices)
-            symmetric_x = self.shared_model.state_type(x)
-            s = self.shared_model.obs_fn(symmetric_x).tensor
+            symmetric_x = self.edae_model.state_type(x)
+            s = self.edae_model.obs_fn(symmetric_x).tensor
         actions_mean = self.actor(s)
         return actions_mean
 
@@ -50,8 +54,8 @@ class LatentStateActorCritic(ActorCritic):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices)
-            symmetric_x = self.shared_model.state_type(x)
-            s = self.shared_model.obs_fn(symmetric_x).tensor
+            symmetric_x = self.edae_model.state_type(x)
+            s = self.edae_model.obs_fn(symmetric_x).tensor
         value = self.critic(s)
         return value
 
@@ -60,6 +64,7 @@ class LatentStateActorCritic(ActorCritic):
         dha_dir = os.path.dirname(dha.__file__)
         model_dir = os.path.join(dha_dir, self.model_path)
         with torch.device('cpu'):
-            self.shared_model = utils.get_trained_eDAE_model(model_dir)
-        self.shared_model.to(self.device)
-        self.shared_model.eval()
+            edae_model = utils.get_trained_eDAE_model(model_dir)
+        edae_model.to(self.device)
+        edae_model.eval()
+        return edae_model

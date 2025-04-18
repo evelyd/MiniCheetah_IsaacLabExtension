@@ -130,7 +130,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     policy_params = agent_cfg.policy.to_dict()  # Start with the default policy config
     policy_params.update({
         "class_name": "LatentStateActorCritic",
-        "latent_dim": env.unwrapped.shared_model.obs_state_dim,
         "joint_order_indices": joint_order_indices,
         "edae_dir": args_cli.edae_dir,
         "device": agent_cfg.device,
