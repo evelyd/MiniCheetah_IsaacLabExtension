@@ -8,6 +8,10 @@ import os
 import dha
 import mini_cheetah.tasks.locomotion.velocity.utils as utils
 
+from pybullet_utils.bullet_client import BulletClient
+import pybullet
+from morpho_symm.utils.robot_utils import load_symmetric_system
+import numpy as np
 
 class LatentStateActorCritic(ActorCritic):
     def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, edae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
@@ -24,10 +28,18 @@ class LatentStateActorCritic(ActorCritic):
         # Assign the eDAE model to the class
         self.edae_model = edae_model
 
+        # Create a variable to hold the q0 for the joint offset that is needed by the symmetry groups
+        robot, G = load_symmetric_system(robot_name="mini_cheetah")
+        bullet_client = BulletClient(connection_mode=pybullet.DIRECT)
+        robot.configure_bullet_simulation(bullet_client=bullet_client)
+        # Get zero reference position.
+        q0, _ = robot.pin2sim(robot._q0, np.zeros(robot.nv))
+        self.q0 = torch.tensor(q0).to(self.device)
+
     def update_distribution(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices)
+            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
             symmetric_x = self.edae_model.state_type(x)
             s = self.edae_model.obs_fn(symmetric_x).tensor
         mean = self.actor(s)
@@ -44,7 +56,7 @@ class LatentStateActorCritic(ActorCritic):
     def act_inference(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices)
+            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
             symmetric_x = self.edae_model.state_type(x)
             s = self.edae_model.obs_fn(symmetric_x).tensor
         actions_mean = self.actor(s)
@@ -53,7 +65,7 @@ class LatentStateActorCritic(ActorCritic):
     def evaluate(self, critic_observations, **kwargs):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices)
+            x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
             symmetric_x = self.edae_model.state_type(x)
             s = self.edae_model.obs_fn(symmetric_x).tensor
         value = self.critic(s)

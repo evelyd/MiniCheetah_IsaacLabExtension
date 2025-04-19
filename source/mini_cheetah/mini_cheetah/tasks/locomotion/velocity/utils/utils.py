@@ -11,7 +11,7 @@ from morpho_symm.utils.rep_theory_utils import group_rep_from_gens
 import escnn
 from escnn.nn import FieldType
 
-def get_state_action_from_obs(obs, joint_order_indices):
+def get_state_action_from_obs(obs, joint_order_indices, q0):
     """
     Takes an observation from the observation class and extracts the system state and action vectors.
 
@@ -26,6 +26,8 @@ def get_state_action_from_obs(obs, joint_order_indices):
     joint_pos = obs[:, 12:24]
     # Reorder joint positions
     joint_pos_reordered = joint_pos[:, joint_order_indices]
+    # Add offset to the measurements (necessary for symmetry group)
+    joint_pos_reordered += q0[7:]
     # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format
     cos_q_js, sin_q_js = torch.cos(joint_pos_reordered), torch.sin(joint_pos_reordered)
     q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
