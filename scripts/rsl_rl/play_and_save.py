@@ -19,6 +19,7 @@ parser.add_argument(
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
+parser.add_argument("--phys_dt", type=bool, default=False, help="Use physics dt for the simulation.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -48,7 +49,6 @@ import json
 
 # Import extensions to set up environment tasks
 import mini_cheetah.tasks  # noqa: F401
-
 
 def main():
     """Play with RSL-RL agent."""
@@ -108,6 +108,22 @@ def main():
     timestep = 0
     data = []  # List to store obs-action pairs
 
+    if args_cli.phys_dt:
+        def record_at_sim_step(step):
+            """Records state information (excluding commands) at each physics step."""
+            timestamp = env.unwrapped._sim_step_counter * env.unwrapped.physics_dt
+
+            obs_buf = env.unwrapped.observation_manager.compute()['policy']
+
+            data.append({"obs": obs_buf.cpu().numpy(), "timestamp": timestamp})
+
+            # Optional: Print some data for verification
+            if step % 100 == 0:
+                print(f"Sim Step: {step}, Time: {timestamp:.4f}, State: {obs_buf.keys()}")
+
+        # Register the physics callback BEFORE the simulation loop
+        env.unwrapped.sim.add_physics_callback("sim_data_recorder", record_at_sim_step)
+
     # simulate environment
     while simulation_app.is_running():
         # run everything in inference mode
@@ -117,7 +133,8 @@ def main():
 
             # save obs-action pair
             # obs contains the current action u_t as well as the current state x_t, while actions contains u_{t+1}
-            data.append({"obs": obs.cpu().numpy(), "actions": actions.cpu().numpy()})
+            if not args_cli.phys_dt:
+                data.append({"obs": obs.cpu().numpy(), "actions": actions.cpu().numpy()})
             # env stepping
             obs, _, _, _ = env.step(actions)
         if args_cli.video:
@@ -125,6 +142,10 @@ def main():
             # Exit the play loop after recording one video
             if timestep == args_cli.video_length:
                 break
+
+    if args_cli.phys_dt:
+        # Unregister the callback after the simulation loop (optional but good practice)
+        env.unwrapped.sim.remove_physics_callback("sim_data_recorder")
 
     # Save data to a .npy file
     output_file = os.path.join(log_dir, "obs_action_pairs.npy")
