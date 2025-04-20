@@ -4,12 +4,15 @@ import os
 import glob
 import dha
 from dha.nn.EquivDynamicsAutoencoder import EquivDAE
-
+from dha.nn.DynamicsAutoEncoder import DAE
+from dha.utils.mysc import class_from_name
 from morpho_symm.utils.robot_utils import load_symmetric_system
 from morpho_symm.utils.rep_theory_utils import group_rep_from_gens
 
 import escnn
 from escnn.nn import FieldType
+
+import re
 
 def get_state_action_from_obs(obs, joint_order_indices, q0):
     """
@@ -85,13 +88,13 @@ def extract_trained_model_info(state_dict) -> (int, int, bool, int):
 
     for key in state_dict.keys():
         if ".obs_fn.net" in key:
-            if "model.obs_fn.net.block_" in key and "expanded_bias" in key:
+            if "model.obs_fn.net.block_" in key and "weight" in key:
                 layers += 1
             if "linear_0" in key and "bias" in key:
                 hidden_units = state_dict[key].shape[0]
             if 'bias' in key and not has_bias:
                 has_bias = True
-            if "head" in key and "bias_expansion" in key:
+            if "head" in key and ".bias" in key:
                 obs_state_dim = state_dict[key].shape[0]
 
     layers += 1  # Add one for the head layer
@@ -118,12 +121,7 @@ def get_trained_eDAE_model(model_dir):
     Returns:
         torch.nn.Module: The trained model.
     """
-    seed_dirs = [d for d in glob.glob(os.path.join(model_dir, "seed=*")) if os.path.isdir(d)]
-    if not seed_dirs:
-        print("Directories within model_dir:", os.listdir(model_dir))
-        raise FileNotFoundError(f"No directory matching 'seed=.*' found in {model_dir}")
-    seed_dir = seed_dirs[0]
-    ckpt_path = os.path.join(seed_dir, "best.ckpt")
+    ckpt_path = os.path.join(model_dir, "best.ckpt")
 
     # Load the model from the checkpoint
     checkpoint = torch.load(ckpt_path)
@@ -152,18 +150,25 @@ def get_trained_eDAE_model(model_dir):
     state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size  # Count rep_euler_xyz twice
     state_type = FieldType(gspace, representations=state_reps)
 
-    dt = 0.003
-    orth_w = 0.0
+    dt = 0.02
+    orth_w_match = re.search(r"Orth_w:([\d\.]+)", model_dir)
+    orth_w = float(orth_w_match.group(1)) if orth_w_match else 0.0
+    obs_pred_w_match = re.search(r"Obs_w:([\d\.]+)", model_dir)
+    obs_pred_w = float(obs_pred_w_match.group(1)) if obs_pred_w_match else 1.0
     group_avg_trick = True
     state_dependent_obs_dyn = False
     enforce_constant_fn = True
-    activation = 'ELU'
+    act_match = re.search(r"Act:([\d\.]+)", model_dir)
+    activation = obs_pred_w_match.group(1) if act_match else 'ELU'
     batch_norm = False
+
+    if not "E-DAE" in model_dir:
+        activation = class_from_name("torch.nn", activation)
 
     num_layers, num_hidden_units, bias, obs_state_dim = extract_trained_model_info(state_dict)
     obs_fn_params = {'num_layers': num_layers, 'num_hidden_units': num_hidden_units, 'activation': activation, 'bias': bias, 'batch_norm': batch_norm}
 
-    with torch.device('cuda'):
+    if "E-DAE" in model_dir:
         model = EquivDAE(
             state_rep=state_type.representation,
             obs_state_dim=obs_state_dim,
@@ -175,13 +180,27 @@ def get_trained_eDAE_model(model_dir):
             enforce_constant_fn=enforce_constant_fn,
             # reuse_input_observable=cfg.model.reuse_input_observable,
         )
+    else:
+        corr_w = 0.0
+        model = DAE(
+            state_dim=state_type.size,
+            obs_state_dim=obs_state_dim,
+            dt=dt,
+            obs_pred_w=obs_pred_w,
+            orth_w=orth_w,
+            corr_w=corr_w,
+            obs_fn_params=obs_fn_params,
+            enforce_constant_fn=enforce_constant_fn,
+            # reuse_input_observable=cfg.model.reuse_input_observable,
+        )
 
     model.load_state_dict(remove_state_dict_prefix(state_dict, "model."))
 
     return model
 
 def main():
-    model_dir = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/"
+    # model_dir = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=399/"
+    model_dir = "experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:30-EH:30_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=776/"
 
     dha_dir = os.path.dirname(dha.__file__)
     model_dir = os.path.join(dha_dir, model_dir)
