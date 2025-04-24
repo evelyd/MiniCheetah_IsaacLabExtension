@@ -24,7 +24,10 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-parser.add_argument("--edae_dir", type=str, default="experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=399/", help="Directory path to the eDAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=399/", help="Directory path to the eDAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S=2025-04-18_09-13-49-OS=5-G=K4xC2-H=5-EH=5_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=224/", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=858/", help="Directory path to the DAE model file.")
+parser.add_argument("--dae_dir", type=str, default="experiments/test/S=2025-04-18_09-13-49-OS=5-G=K4xC2-H=5-EH=5_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=981/", help="Directory path to the DAE model file.")
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -131,7 +134,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     policy_params.update({
         "class_name": "LatentStateActorCritic",
         "joint_order_indices": joint_order_indices,
-        "edae_dir": args_cli.edae_dir,
+        "dae_dir": args_cli.dae_dir,
         "device": agent_cfg.device,
     })
 

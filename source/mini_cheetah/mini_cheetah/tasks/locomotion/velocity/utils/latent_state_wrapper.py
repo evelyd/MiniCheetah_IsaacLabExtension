@@ -36,12 +36,34 @@ class LatentStateActorCritic(ActorCritic):
         q0, _ = robot.pin2sim(robot._q0, np.zeros(robot.nv))
         self.q0 = torch.tensor(q0).to(self.device)
 
+        # Get the normalization info for the DAE model
+        dha_dir = os.path.dirname(dha.__file__)
+        #TODO make it possible to test with normalization for the original data DAE
+        model_dir = os.path.join(dha_dir, self.model_path)
+        norm_dir = os.path.join(model_dir, "../state_mean_var.npy")
+        # Load state_mean and state_var from the npy file
+        norm_data = np.load(norm_dir, allow_pickle=True).item()
+
+        # Extract state_mean and state_var values
+        state_mean_values = norm_data["state_mean"]
+        state_var_values = norm_data["state_var"]
+
+        # Convert to torch tensors
+        self.state_mean = torch.tensor(state_mean_values, device=self.device).float()
+        self.state_std = torch.sqrt(torch.tensor(state_var_values, device=self.device)).float()
+
     def update_distribution(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
-            symmetric_x = self.edae_model.state_type(x)
-            s = self.edae_model.obs_fn(symmetric_x).tensor
+            x_normed = (x - self.state_mean) / self.state_std
+            if "E-DAE" in self.model_path:
+                # E-DAE model
+                symmetric_x = self.dae_model.state_type(x_normed)
+                s = self.dae_model.obs_fn(symmetric_x).tensor
+            else:
+                # DAE model
+                s = self.dae_model.obs_fn(x_normed)
         mean = self.actor(s)
         # compute standard deviation
         if self.noise_std_type == "scalar":
@@ -57,8 +79,14 @@ class LatentStateActorCritic(ActorCritic):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
-            symmetric_x = self.edae_model.state_type(x)
-            s = self.edae_model.obs_fn(symmetric_x).tensor
+            x_normed = (x - self.state_mean) / self.state_std
+            if "E-DAE" in self.model_path:
+                # E-DAE model
+                symmetric_x = self.dae_model.state_type(x_normed)
+                s = self.dae_model.obs_fn(symmetric_x).tensor
+            else:
+                # DAE model
+                s = self.dae_model.obs_fn(x_normed)
         actions_mean = self.actor(s)
         return actions_mean
 
@@ -66,17 +94,23 @@ class LatentStateActorCritic(ActorCritic):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
             x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
-            symmetric_x = self.edae_model.state_type(x)
-            s = self.edae_model.obs_fn(symmetric_x).tensor
+            x_normed = (x - self.state_mean) / self.state_std
+            if "E-DAE" in self.model_path:
+                # E-DAE model
+                symmetric_x = self.dae_model.state_type(x_normed)
+                s = self.dae_model.obs_fn(symmetric_x).tensor
+            else:
+                # DAE model
+                s = self.dae_model.obs_fn(x_normed)
         value = self.critic(s)
         return value
 
     def _load_model(self):
-        # Set the eDAE model
+        # Set the dae model
         dha_dir = os.path.dirname(dha.__file__)
         model_dir = os.path.join(dha_dir, self.model_path)
         with torch.device('cpu'):
-            edae_model = utils.get_trained_eDAE_model(model_dir)
-        edae_model.to(self.device)
-        edae_model.eval()
-        return edae_model
+            dae_model = utils.get_trained_dae_model(model_dir)
+        dae_model.to(self.device)
+        dae_model.eval()
+        return dae_model
