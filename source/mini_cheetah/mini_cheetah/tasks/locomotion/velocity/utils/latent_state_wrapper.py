@@ -14,19 +14,19 @@ from morpho_symm.utils.robot_utils import load_symmetric_system
 import numpy as np
 
 class LatentStateActorCritic(ActorCritic):
-    def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, edae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
+    def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, dae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
 
         self.joint_order_indices = joint_order_indices
         self.device = kwargs.get("device", "cpu")
-        self.model_path = edae_dir
-        edae_model = self._load_model()
+        self.model_path = dae_dir
+        dae_model = self._load_model()
 
         # Use the latent state dimensions to initialize the ActorCritic
-        latent_dim = edae_model.obs_state_dim
+        latent_dim = dae_model.obs_state_dim
         super().__init__(num_actor_obs=latent_dim, num_critic_obs=latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
 
-        # Assign the eDAE model to the class
-        self.edae_model = edae_model
+        # Assign the DAE model to the class
+        self.dae_model = dae_model
 
         # Create a variable to hold the q0 for the joint offset that is needed by the symmetry groups
         robot, G = load_symmetric_system(robot_name="mini_cheetah")

@@ -18,7 +18,7 @@ def get_state_action_from_obs(obs, joint_order_indices, q0):
     """
     Takes an observation from the observation class and extracts the system state and action vectors.
 
-    Puts the state in the correct form for use in the eDAE model.
+    Puts the state in the correct form for use in the DAE model.
 
     State vector is composed as: $x = [q, \dot q, z, v, o, \omega] \in \mathbb R^{46}$
     """
@@ -111,9 +111,9 @@ def remove_state_dict_prefix(state_dict, prefix):
             new_state_dict[key] = value
     return new_state_dict
 
-def get_trained_eDAE_model(model_dir):
+def get_trained_dae_model(model_dir):
     """
-    Load the trained eDAE model.
+    Load the trained DAE model.
 
     Args:
         model_path (str): Path to the trained model.
@@ -205,7 +205,7 @@ def main():
     dha_dir = os.path.dirname(dha.__file__)
     model_dir = os.path.join(dha_dir, model_dir)
     try:
-        model = get_trained_eDAE_model(model_dir)
+        model = get_trained_dae_model(model_dir)
         print("Model loaded successfully!")
         print(model)
     except Exception as e:
