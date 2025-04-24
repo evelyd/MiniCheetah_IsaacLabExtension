@@ -23,7 +23,7 @@ class LatentStateActorCritic(ActorCritic):
 
         # Use the latent state dimensions to initialize the ActorCritic
         latent_dim = dae_model.obs_state_dim
-        super().__init__(num_actor_obs=latent_dim, num_critic_obs=latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
+        super().__init__(num_actor_obs=num_actor_obs + latent_dim, num_critic_obs=num_critic_obs + latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
 
         # Assign the DAE model to the class
         self.dae_model = dae_model
@@ -64,7 +64,10 @@ class LatentStateActorCritic(ActorCritic):
             else:
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
-        mean = self.actor(s)
+        # Concatenate the latent state with the observations
+        #TODO this won't work with edae if I want to use the emlp
+        z = torch.cat((observations, s), dim=-1)
+        mean = self.actor(z)
         # compute standard deviation
         if self.noise_std_type == "scalar":
             std = self.std.expand_as(mean)
@@ -87,7 +90,9 @@ class LatentStateActorCritic(ActorCritic):
             else:
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
-        actions_mean = self.actor(s)
+        # Concatenate the latent state with the observations
+        z = torch.cat((observations, s), dim=-1)
+        actions_mean = self.actor(z)
         return actions_mean
 
     def evaluate(self, critic_observations, **kwargs):
@@ -102,7 +107,9 @@ class LatentStateActorCritic(ActorCritic):
             else:
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
-        value = self.critic(s)
+        # Concatenate the latent state with the observations
+        z = torch.cat((critic_observations, s), dim=-1)
+        value = self.critic(z)
         return value
 
     def _load_model(self):
