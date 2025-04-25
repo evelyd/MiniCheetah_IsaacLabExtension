@@ -38,9 +38,8 @@ class LatentStateActorCritic(ActorCritic):
 
         # Get the normalization info for the DAE model
         dha_dir = os.path.dirname(dha.__file__)
-        #TODO make it possible to test with normalization for the original data DAE
         model_dir = os.path.join(dha_dir, self.model_path)
-        norm_dir = os.path.join(model_dir, "../state_mean_var.npy")
+        norm_dir = os.path.join(model_dir, "state_mean_var.npy")
         # Load state_mean and state_var from the npy file
         norm_data = np.load(norm_dir, allow_pickle=True).item()
 
