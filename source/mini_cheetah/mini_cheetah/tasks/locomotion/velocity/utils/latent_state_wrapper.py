@@ -54,7 +54,7 @@ class LatentStateActorCritic(ActorCritic):
     def update_distribution(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -77,7 +77,7 @@ class LatentStateActorCritic(ActorCritic):
     def act_inference(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -92,7 +92,7 @@ class LatentStateActorCritic(ActorCritic):
     def evaluate(self, critic_observations, **kwargs):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
