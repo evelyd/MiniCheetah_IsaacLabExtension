@@ -23,7 +23,7 @@ class LatentStateActorCritic(ActorCritic):
 
         # Use the latent state dimensions to initialize the ActorCritic
         latent_dim = dae_model.obs_state_dim
-        super().__init__(num_actor_obs=num_actor_obs + latent_dim, num_critic_obs=num_critic_obs + latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
+        super().__init__(num_actor_obs=num_actor_obs, num_critic_obs=latent_dim, num_actions=num_actions, actor_hidden_dims=actor_hidden_dims, critic_hidden_dims=critic_hidden_dims, activation=activation, **kwargs)
 
         # Assign the DAE model to the class
         self.dae_model = dae_model
@@ -52,21 +52,8 @@ class LatentStateActorCritic(ActorCritic):
         self.state_std = torch.sqrt(torch.tensor(state_var_values, device=self.device)).float()
 
     def update_distribution(self, observations):
-        # compute mean with latent state as input
-        with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
-            x_normed = (x - self.state_mean) / self.state_std
-            if "E-DAE" in self.model_path:
-                # E-DAE model
-                symmetric_x = self.dae_model.state_type(x_normed)
-                s = self.dae_model.obs_fn(symmetric_x).tensor
-            else:
-                # DAE model
-                s = self.dae_model.obs_fn(x_normed)
-        # Concatenate the latent state with the observations
-        #TODO this won't work with edae if I want to use the emlp
-        z = torch.cat((observations, s), dim=-1)
-        mean = self.actor(z)
+        # compute mean
+        mean = self.actor(observations)
         # compute standard deviation
         if self.noise_std_type == "scalar":
             std = self.std.expand_as(mean)
@@ -78,26 +65,14 @@ class LatentStateActorCritic(ActorCritic):
         self.distribution = Normal(mean, std)
 
     def act_inference(self, observations):
-        # compute mean with latent state as input
-        with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
-            x_normed = (x - self.state_mean) / self.state_std
-            if "E-DAE" in self.model_path:
-                # E-DAE model
-                symmetric_x = self.dae_model.state_type(x_normed)
-                s = self.dae_model.obs_fn(symmetric_x).tensor
-            else:
-                # DAE model
-                s = self.dae_model.obs_fn(x_normed)
-        # Concatenate the latent state with the observations
-        z = torch.cat((observations, s), dim=-1)
-        actions_mean = self.actor(z)
+        # compute mean
+        actions_mean = self.actor(observations)
         return actions_mean
 
     def evaluate(self, critic_observations, **kwargs):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x, _ = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -107,8 +82,7 @@ class LatentStateActorCritic(ActorCritic):
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
         # Concatenate the latent state with the observations
-        z = torch.cat((critic_observations, s), dim=-1)
-        value = self.critic(z)
+        value = self.critic(s)
         return value
 
     def _load_model(self):

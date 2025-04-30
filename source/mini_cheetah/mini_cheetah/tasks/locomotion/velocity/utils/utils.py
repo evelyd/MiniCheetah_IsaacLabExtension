@@ -22,11 +22,23 @@ def get_state_action_from_obs(obs, joint_order_indices, q0):
 
     State vector is composed as: $x = [q, \dot q, z, v, o, \omega] \in \mathbb R^{46}$
     """
-    base_lin_vel = obs[:, :3]
+
+    # Define the default joint positions in Isaaclab
+    q0_isaaclab = torch.tensor([0.10000000149011612, -0.10000000149011612, 0.10000000149011612, -0.10000000149011612, -0.800000011920929, -0.800000011920929, -0.800000011920929, -0.800000011920929, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716], device=obs.device, dtype=obs.dtype) #TODO this is hardcoded, if the defaults change then I have to change this too
+
+    base_vel = obs[:, :3]
+    velocity_commands_xy = obs[:, 9:11] # Rep: Rd for xy, euler xyz for heading? idk
+    ref_base_lin_vel = torch.hstack([velocity_commands_xy, torch.zeros((velocity_commands_xy.shape[0], 1), device=obs.device)]) # set ref lin z vel to 0
+    base_vel_error = base_vel - ref_base_lin_vel
+
     base_ang_vel = obs[:, 3:6]
+    velocity_commands_z = obs[:, 11].unsqueeze(-1) # Rep: Rd for xy, euler xyz for heading? idk
+    ref_base_ang_vel = torch.hstack([torch.zeros((base_ang_vel.shape[0], 2), device=obs.device), velocity_commands_z])
+    base_ang_vel_error = base_ang_vel - ref_base_ang_vel
 
     # Get the joint positions and velocities
-    joint_pos = obs[:, 12:24]
+    joint_pos_rel = obs[:, 12:24]
+    joint_pos = joint_pos_rel + q0_isaaclab  # Compute the absolute joint positions
     # Reorder joint positions
     joint_pos_reordered = joint_pos[:, joint_order_indices]
     # Add offset to the measurements (necessary for symmetry group)
@@ -40,18 +52,30 @@ def get_state_action_from_obs(obs, joint_order_indices, q0):
     joint_vel = joint_vel[:, joint_order_indices]
 
     # Get the base pose info
+    ref_base_z = 0.5 #TODO this value is hardcoded for now to avoid needing to collect the data yet again
     base_z = obs[:, 48]
+    base_z_error = base_z - ref_base_z
     base_quat = obs[:, 49:53]
     #Convert base quat to euler angles
-    base_euler_angles = quat_to_euler_torch(base_quat)
+    base_ori = quat_to_euler_torch(base_quat)
+
+    projected_gravity = obs[:, 6:9]
+
+    action_joint_pos = obs[:, 36:48]
+    # Reorder action joint positions to match the morphosymm order
+    action_joint_pos = action_joint_pos[:, joint_order_indices] # the action joint positions are already absolute
+    action_joint_pos = action_joint_pos + q0[7:]  # Add offset to the measurements
+    cos_a_js, sin_a_js = torch.cos(action_joint_pos), torch.sin(action_joint_pos)  # convert from angle to unit circle parametrization
+    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
+    a_js_unit_circle_t = torch.stack([cos_a_js, sin_a_js], axis=2)
+    a_joint_pos_parametrized = a_js_unit_circle_t.reshape(a_js_unit_circle_t.shape[0], -1)
 
     # Concatenate all these states into a single state vector
-    base_z = base_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
-    x = torch.cat([joint_pos_parametrized, joint_vel, base_z, base_lin_vel, base_euler_angles, base_ang_vel], dim=1)
+    base_z_error = base_z_error.unsqueeze(-1)  # Add a dimension to match concatenation requirements
+    velocity_commands_z = velocity_commands_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
+    x = torch.cat([joint_pos_parametrized, joint_vel, base_z_error, base_vel_error, base_ori, base_ang_vel_error, projected_gravity, a_joint_pos_parametrized], dim=1).to(dtype=obs.dtype)
 
-    u = obs[:, 36:48]
-
-    return x, u
+    return x
 
 def quat_to_euler_torch(quaternions):
     """
@@ -145,9 +169,9 @@ def get_trained_dae_model(model_dir):
     rep_euler_xyz = G.representations['euler_xyz']
 
     # Define the state type using the extracted representations
-    state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz]
+    state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz, rep_Rd, rep_Q_js]
     state_type = FieldType(gspace, representations=state_reps)
-    state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size  # Count rep_euler_xyz twice
+    state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size + rep_Rd.size + rep_Q_js.size  # Count duplicates twice
     state_type = FieldType(gspace, representations=state_reps)
 
     dt = 0.02
