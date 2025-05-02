@@ -21,9 +21,12 @@ from isaaclab.assets.articulation import ArticulationCfg
 ##
 # Configuration
 ##
+from pathlib import Path
+MINI_CHEETAH_CFG_PATH = Path(__file__).parent / "models"
+model_path = MINI_CHEETAH_CFG_PATH / Path("./mini_cheetah.usd")
 MINI_CHEETAH_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"omniverse://localhost/JSZR/mini_cheetah.usd",
+        usd_path=str(model_path),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
