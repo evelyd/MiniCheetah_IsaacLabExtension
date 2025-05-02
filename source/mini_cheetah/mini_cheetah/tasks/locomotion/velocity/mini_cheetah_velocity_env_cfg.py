@@ -20,12 +20,17 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 import mini_cheetah.tasks.locomotion.velocity.mdp as mdp
+import mini_cheetah.tasks.locomotion.velocity.utils as utils
+
+from .mutable_command import ReferenceVelocityCommandCfg, ReferenceVelocityCommand
 
 ##
 # Pre-defined configs
 ##
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
 
+import os
+import dha
 
 ##
 # Scene definition
@@ -73,12 +78,13 @@ class MySceneCfg(InteractiveSceneCfg):
 # MDP settings
 ##
 
-
+# Need this one for train
 @configclass
 class CommandsCfg:
     """Command specifications for the MDP."""
 
-    base_velocity = mdp.UniformVelocityCommandCfg(
+    base_velocity = ReferenceVelocityCommandCfg(
+        class_type=ReferenceVelocityCommand,
         asset_name="robot",
         resampling_time_range=(10.0, 10.0),
         rel_standing_envs=0.02,
@@ -86,11 +92,30 @@ class CommandsCfg:
         heading_command=True,
         heading_control_stiffness=0.5,
         debug_vis=True,
-        ranges=mdp.UniformVelocityCommandCfg.Ranges(
+        ranges=ReferenceVelocityCommandCfg.Ranges(
             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
         ),
     )
 
+# TODO find a solution that works for both train and play
+# Need this one for play
+# @configclass
+# class CommandsCfg:
+#     """Command specifications for the MDP."""
+
+#     base_velocity = mdp.UniformVelocityCommandCfg(
+#         class_type=mdp.UniformVelocityCommand,
+#         asset_name="robot",
+#         resampling_time_range=(10.0, 10.0),
+#         rel_standing_envs=0.02,
+#         rel_heading_envs=1.0,
+#         heading_command=True,
+#         heading_control_stiffness=0.5,
+#         debug_vis=True,
+#         ranges=mdp.UniformVelocityCommandCfg.Ranges(
+#             lin_vel_x=(-1.0, 1.0), lin_vel_y=(-1.0, 1.0), ang_vel_z=(-1.0, 1.0), heading=(-math.pi, math.pi)
+#         ),
+#     )
 
 @configclass
 class ActionsCfg:
@@ -208,6 +233,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # -- task
+    #TODO these represent the u reward term when u is def'd as the desired velocity
     track_lin_vel_xy_exp = RewTerm(
         func=mdp.track_lin_vel_xy_exp, weight=10.0, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     )
