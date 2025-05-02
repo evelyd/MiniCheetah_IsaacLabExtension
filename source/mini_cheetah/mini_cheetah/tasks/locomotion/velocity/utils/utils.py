@@ -60,6 +60,8 @@ def get_state_action_from_obs(obs, joint_order_indices, q0):
     base_ori = quat_to_euler_torch(base_quat)
 
     projected_gravity = obs[:, 6:9]
+    ref_projected_gravity = torch.tensor([0, 0, -1.0], device=obs.device, dtype=obs.dtype)
+    projected_gravity_error = projected_gravity - ref_projected_gravity
 
     action_joint_pos = obs[:, 36:48]
     # Reorder action joint positions to match the morphosymm order
@@ -73,7 +75,7 @@ def get_state_action_from_obs(obs, joint_order_indices, q0):
     # Concatenate all these states into a single state vector
     base_z_error = base_z_error.unsqueeze(-1)  # Add a dimension to match concatenation requirements
     velocity_commands_z = velocity_commands_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
-    x = torch.cat([joint_pos_parametrized, joint_vel, base_z_error, base_vel_error, base_ori, base_ang_vel_error, projected_gravity, a_joint_pos_parametrized], dim=1).to(dtype=obs.dtype)
+    x = torch.cat([joint_pos_parametrized, joint_vel, base_z_error, base_vel_error, base_ori, base_ang_vel_error, projected_gravity_error, a_joint_pos_parametrized], dim=1).to(dtype=obs.dtype)
 
     return x
 
