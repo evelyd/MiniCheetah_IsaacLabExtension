@@ -96,6 +96,10 @@ class ObservationsCfg:
         )
         actions = ObsTerm(func=mdp.last_action)
 
+        # My additions
+        base_z = ObsTerm(func=mdp.base_pos_z, noise=Unoise(n_min=-0.01, n_max=0.01))
+        base_quat = ObsTerm(func=mdp.root_quat_w, noise=Unoise(n_min=-0.01, n_max=0.01))
+
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = True
