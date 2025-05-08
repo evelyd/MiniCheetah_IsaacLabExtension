@@ -192,6 +192,8 @@ def get_trained_dae_model(model_dir):
     num_layers, num_hidden_units, bias, obs_state_dim = extract_trained_model_info(state_dict)
     obs_fn_params = {'num_layers': num_layers, 'num_hidden_units': num_hidden_units, 'activation': activation, 'bias': bias, 'batch_norm': batch_norm}
 
+    initial_rng_state = torch.get_rng_state()
+
     if "E-DAE" in model_dir:
         model = EquivDAE(
             state_rep=state_type.representation,
@@ -218,6 +220,7 @@ def get_trained_dae_model(model_dir):
             # reuse_input_observable=cfg.model.reuse_input_observable,
         )
 
+    torch.set_rng_state(initial_rng_state)
     model.load_state_dict(remove_state_dict_prefix(state_dict, "model."))
 
     return model
