@@ -27,7 +27,53 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=399/", help="Directory path to the eDAE model file.")
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S=2025-04-18_09-13-49-OS=5-G=K4xC2-H=5-EH=5_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=224/", help="Directory path to the DAE model file.")
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=858/", help="Directory path to the DAE model file.")
-parser.add_argument("--dae_dir", type=str, default="experiments/test/S=2025-04-18_09-13-49-OS=5-G=K4xC2-H=5-EH=5_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=981/", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S=2025-04-18_09-13-49-OS=5-G=K4xC2-H=5-EH=5_DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=981/", help="Directory path to the DAE model file.")
+
+# The g error ones, h=1
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:1-EH:1_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L[]:5-128_system=mini_cheetah/seed=605", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:1-EH:1_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=028", help="Directory path to the DAE model file.")
+
+# g error, h=10
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:10-EH:10_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=581", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:10-EH:10_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=220", help="Directory path to the DAE model file.")
+
+# g error, h=5
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=863", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-01_22-17-31-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=193", help="Directory path to the DAE model file.")
+
+# # g error, h=1 v0
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:1-EH:1_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=798", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:1-EH:1_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=388", help="Directory path to the DAE model file.")
+
+# # g error, h=5 v0
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=618", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=073", help="Directory path to the DAE model file.")
+
+# # g error, h=10 v0
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:10-EH:10_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=369", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:10-EH:10_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=220", help="Directory path to the DAE model file.")
+
+# # g error, h=30 v0
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:30-EH:30_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=680", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:30-EH:30_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=785", help="Directory path to the DAE model file.")
+
+#-------------------------------------
+# imu task v0, h=1, obs state ratio 5
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:1-EH:1_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=731", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:1-EH:1_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=083", help="Directory path to the DAE model file.")
+# # imu task v0, h=5, obs state ratio 5
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=075", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=945", help="Directory path to the DAE model file.")
+# # imu task v0, h=10, obs state ratio 5
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:10-EH:10_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=921", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:5-G:K4xC2-H:10-EH:10_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=061", help="Directory path to the DAE model file.")
+# # imu task v0, h=1, obs state ratio 1
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:1-G:K4xC2-H:1-EH:1_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=256", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:1-G:K4xC2-H:1-EH:1_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=791", help="Directory path to the DAE model file.")
+# # imu task v0, h=1, obs state ratio 3
+parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:3-G:K4xC2-H:1-EH:1_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=305", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-09_13-19-56-OS:3-G:K4xC2-H:1-EH:1_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=930", help="Directory path to the DAE model file.")
+
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -135,6 +181,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "class_name": "LatentStateActorCritic",
         "joint_order_indices": joint_order_indices,
         "dae_dir": args_cli.dae_dir,
+        "task_name": args_cli.task,
         "device": agent_cfg.device,
     })
 

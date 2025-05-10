@@ -14,11 +14,13 @@ from morpho_symm.utils.robot_utils import load_symmetric_system
 import numpy as np
 
 class LatentStateActorCritic(ActorCritic):
-    def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, dae_dir, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
+    def __init__(self, num_actor_obs, num_critic_obs, num_actions, joint_order_indices, dae_dir, task_name, actor_hidden_dims, critic_hidden_dims, activation, **kwargs):
 
         self.joint_order_indices = joint_order_indices
         self.device = kwargs.get("device", "cpu")
         self.model_path = dae_dir
+        self.imu_task = True if "Imu" in task_name else False
+        print(f"task name and whether it has imu in it: {task_name}, {self.imu_task}")
         dae_model = self._load_model()
 
         # Use the latent state dimensions to initialize the ActorCritic
@@ -54,7 +56,7 @@ class LatentStateActorCritic(ActorCritic):
     def update_distribution(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0, self.imu_task)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -77,7 +79,7 @@ class LatentStateActorCritic(ActorCritic):
     def act_inference(self, observations):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(observations, self.joint_order_indices, self.q0, self.imu_task)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -92,7 +94,7 @@ class LatentStateActorCritic(ActorCritic):
     def evaluate(self, critic_observations, **kwargs):
         # compute mean with latent state as input
         with torch.no_grad():  # Ensure obs_fn doesn't track gradients
-            x = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0)
+            x = utils.get_state_action_from_obs(critic_observations, self.joint_order_indices, self.q0, self.imu_task)
             x_normed = (x - self.state_mean) / self.state_std
             if "E-DAE" in self.model_path:
                 # E-DAE model
@@ -109,7 +111,7 @@ class LatentStateActorCritic(ActorCritic):
         dha_dir = os.path.dirname(dha.__file__)
         model_dir = os.path.join(dha_dir, self.model_path)
         with torch.device('cpu'):
-            dae_model = utils.get_trained_dae_model(model_dir)
+            dae_model = utils.get_trained_dae_model(model_dir, self.imu_task)
         dae_model.to(self.device)
         dae_model.eval()
         return dae_model
