@@ -277,6 +277,12 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint")},
     )
 
+    distance_traveled = RewardTermCfg(
+        func=mini_cheetah_mdp.distance_traveled_reward,
+        weight=10.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "max_distance": 70.0},
+    )
+
 
 
 @configclass

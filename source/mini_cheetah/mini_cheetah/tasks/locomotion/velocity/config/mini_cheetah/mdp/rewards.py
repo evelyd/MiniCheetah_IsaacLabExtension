@@ -280,3 +280,10 @@ def joint_velocity_penalty(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) ->
     # extract the used quantities (to enable type-hinting)
     asset: Articulation = env.scene[asset_cfg.name]
     return torch.linalg.norm((asset.data.joint_vel), dim=1)
+
+def distance_traveled_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, max_distance) -> torch.Tensor:
+    """Reward distance traveled by the base of the robot."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # compute the distance the robot walked
+    return torch.clip(torch.norm(asset.data.root_pos_w[:, :2] - env.scene.env_origins[:, :2], dim=1)/max_distance, max=1.0)
