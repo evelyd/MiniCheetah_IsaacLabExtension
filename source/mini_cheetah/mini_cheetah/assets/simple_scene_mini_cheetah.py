@@ -120,4 +120,4 @@ class MiniCheetahSceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    # imu = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/waist_imu_0", debug_vis=True)
+    imu = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/base", debug_vis=True)
