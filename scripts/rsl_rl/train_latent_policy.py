@@ -138,6 +138,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         "class_name": "LatentStateActorCritic",
         "joint_order_indices": joint_order_indices,
         "dae_dir": args_cli.dae_dir,
+        "task_name": args_cli.task,
         "device": agent_cfg.device,
     })
 
