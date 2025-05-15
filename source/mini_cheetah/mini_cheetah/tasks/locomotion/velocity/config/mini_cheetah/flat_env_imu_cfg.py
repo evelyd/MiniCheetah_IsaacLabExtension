@@ -187,16 +187,16 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     # -- task
-    air_time = RewardTermCfg(
-        func=mini_cheetah_mdp.air_time_reward,
-        weight=5.0,
-        params={
-            "mode_time": 0.3,
-            "velocity_threshold": 0.5,
-            "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf"),
-        },
-    )
+    # air_time = RewardTermCfg(
+    #     func=mini_cheetah_mdp.air_time_reward,
+    #     weight=5.0,
+    #     params={
+    #         "mode_time": 0.3,
+    #         "velocity_threshold": 0.5,
+    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf"),
+    #     },
+    # )
     base_angular_velocity = RewardTermCfg(
         func=mini_cheetah_mdp.base_angular_velocity_reward,
         weight=5.0,
@@ -231,12 +231,13 @@ class RewardsCfg:
     )
 
     # -- penalties
-    action_smoothness = RewardTermCfg(func=mini_cheetah_mdp.action_smoothness_penalty, weight=-1.0)
-    air_time_variance = RewardTermCfg(
-        func=mini_cheetah_mdp.air_time_variance_penalty,
-        weight=-1.0,
-        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf")},
-    )
+    # action_smoothness = RewardTermCfg(func=mini_cheetah_mdp.action_smoothness_penalty, weight=-1.0)
+    # air_time_variance = RewardTermCfg(
+    #     func=mini_cheetah_mdp.air_time_variance_penalty,
+    #     weight=-1.0,
+    #     params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_calf")},
+    # )
+    termination_penalty = RewardTermCfg(func=mdp.is_terminated, weight=-400.0)
     base_motion = RewardTermCfg(
         func=mini_cheetah_mdp.base_motion_penalty, weight=-2.0, params={"asset_cfg": SceneEntityCfg("robot")}
     )
@@ -252,11 +253,11 @@ class RewardsCfg:
             "threshold": 1.0,
         },
     )
-    joint_acc = RewardTermCfg(
-        func=mini_cheetah_mdp.joint_acceleration_penalty,
-        weight=-1.0e-4,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint")},
-    )
+    # joint_acc = RewardTermCfg(
+    #     func=mini_cheetah_mdp.joint_acceleration_penalty,
+    #     weight=-1.0e-4,
+    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_joint")},
+    # )
     joint_pos = RewardTermCfg(
         func=mini_cheetah_mdp.joint_position_penalty,
         weight=-0.7,
@@ -266,11 +267,11 @@ class RewardsCfg:
             "velocity_threshold": 0.5,
         },
     )
-    joint_torques = RewardTermCfg(
-        func=mini_cheetah_mdp.joint_torques_penalty,
-        weight=-5.0e-4,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
-    )
+    # joint_torques = RewardTermCfg(
+    #     func=mini_cheetah_mdp.joint_torques_penalty,
+    #     weight=-5.0e-4,
+    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
+    # )
     joint_vel = RewardTermCfg(
         func=mini_cheetah_mdp.joint_velocity_penalty,
         weight=-1.0e-2,
