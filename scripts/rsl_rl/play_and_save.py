@@ -148,7 +148,8 @@ def main():
         env.unwrapped.sim.remove_physics_callback("sim_data_recorder")
 
     # Save data to a .npy file
-    output_file = os.path.join(log_dir, "obs_action_pairs.npy")
+    checkpoint = args_cli.checkpoint.split(".pt")[0] if args_cli.checkpoint and args_cli.checkpoint.endswith(".pt") else "latest"
+    output_file = os.path.join(log_dir, checkpoint + "_obs_action_pairs.npy")
     np.save(output_file, data)
     print(f"[INFO] Saved obs-action pairs to {output_file}")
 
