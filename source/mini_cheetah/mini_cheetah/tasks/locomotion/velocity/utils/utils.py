@@ -27,23 +27,10 @@ def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
     q0_isaaclab = torch.tensor([0.10000000149011612, -0.10000000149011612, 0.10000000149011612, -0.10000000149011612, -0.800000011920929, -0.800000011920929, -0.800000011920929, -0.800000011920929, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716], device=obs.device, dtype=obs.dtype) #TODO this is hardcoded, if the defaults change then I have to change this too
 
     if imu_task:
-        velocity_commands_xy = obs[:, :2]
-        velocity_commands_z = obs[:, 2].unsqueeze(-1) # Rep: Rd for xy, euler xyz for heading? idk
         joint_pos_rel = obs[:, 3:15]
         joint_vel = obs[:, 15:27]
-        action_joint_pos = obs[:, 27:39]
         imu_ang_vel = obs[:, 39:42]
         imu_orientation = obs[:, 42:46]
-
-        # Get the velocity command angular
-        velocity_commands_angular = torch.hstack((torch.zeros((velocity_commands_xy.shape[0], 2), device=obs.device), velocity_commands_z)) # Rep: rep_euler_xyz
-
-        # Get the IMU angular velocity error
-        imu_ang_vel_error = imu_ang_vel - velocity_commands_angular
-
-        # Get the IMU orientation error
-        imu_orientation_ref = torch.tensor([0.0, 0.0, -1.0], device=obs.device)  # Reference orientation for the IMU
-        imu_orientation_error = imu_orientation - imu_orientation_ref
 
     else:
         base_vel = obs[:, :3]
@@ -91,16 +78,17 @@ def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
     # Reorder joint velocities
     joint_vel = joint_vel[:, joint_order_indices]
 
-    # Reorder action joint positions to match the morphosymm order
-    action_joint_pos = action_joint_pos[:, joint_order_indices] # the action joint positions are already absolute
-    action_joint_pos = action_joint_pos + q0[7:]  # Add offset to the measurements
-    cos_a_js, sin_a_js = torch.cos(action_joint_pos), torch.sin(action_joint_pos)  # convert from angle to unit circle parametrization
-    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
-    a_js_unit_circle_t = torch.stack([cos_a_js, sin_a_js], axis=2)
-    a_joint_pos_parametrized = a_js_unit_circle_t.reshape(a_js_unit_circle_t.shape[0], -1)
+    if not imu_task:
+        # Reorder action joint positions to match the morphosymm order
+        action_joint_pos = action_joint_pos[:, joint_order_indices] # the action joint positions are already absolute
+        action_joint_pos = action_joint_pos + q0[7:]  # Add offset to the measurements
+        cos_a_js, sin_a_js = torch.cos(action_joint_pos), torch.sin(action_joint_pos)  # convert from angle to unit circle parametrization
+        # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
+        a_js_unit_circle_t = torch.stack([cos_a_js, sin_a_js], axis=2)
+        a_joint_pos_parametrized = a_js_unit_circle_t.reshape(a_js_unit_circle_t.shape[0], -1)
 
     if imu_task:
-        state_obs = [velocity_commands_xy, joint_pos_parametrized, joint_vel, a_joint_pos_parametrized, imu_ang_vel_error, imu_orientation_error]
+        state_obs = [joint_pos_parametrized, joint_vel, imu_ang_vel, imu_orientation]
     else:
         state_obs = [joint_pos_parametrized, joint_vel, base_z_error, base_vel_error, base_ori, base_ang_vel_error, projected_gravity_error, a_joint_pos_parametrized]
 
@@ -201,10 +189,9 @@ def get_trained_dae_model(model_dir, imu_task):
 
     # Define the state type using the extracted representations
     if imu_task:
-        rep_xy = rep_z = group_rep_from_gens(G, rep_H={h: rep_Rd(h)[:2, :2].reshape((2, 2)) for h in G.elements if h != G.identity})
-        state_reps = [rep_xy, rep_Q_js, rep_TqQ_js, rep_Q_js, rep_euler_xyz, rep_Rd]
+        state_reps = [rep_Q_js, rep_TqQ_js, rep_euler_xyz, rep_Rd]
         state_type = FieldType(gspace, representations=state_reps)
-        state_type.size = sum(rep.size for rep in state_reps) + rep_Q_js.size  # Count duplicates twice
+        # state_type.size = sum(rep.size for rep in state_reps) + rep_Q_js.size  # Count duplicates twice
         state_type = FieldType(gspace, representations=state_reps)
     else:
         state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz, rep_Rd, rep_Q_js]
