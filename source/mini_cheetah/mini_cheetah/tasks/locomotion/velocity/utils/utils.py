@@ -41,8 +41,6 @@ def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
         joint_pos_rel = obs[:, 12:24]
         joint_vel = obs[:, 24:36]
         action_joint_pos = obs[:, 36:48]
-        base_z = obs[:, 48]
-        base_quat = obs[:, 49:53]
 
         ref_base_lin_vel = torch.hstack([velocity_commands_xy, torch.zeros((velocity_commands_xy.shape[0], 1), device=obs.device)]) # set ref lin z vel to 0
         base_vel_error = base_vel - ref_base_lin_vel
@@ -50,18 +48,24 @@ def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
         ref_base_ang_vel = torch.hstack([torch.zeros((base_ang_vel.shape[0], 2), device=obs.device), velocity_commands_z])
         base_ang_vel_error = base_ang_vel - ref_base_ang_vel
 
-        # Get the base pose info
-        ref_base_z = 0.5 #TODO this value is hardcoded for now to avoid needing to collect the data yet again
-        base_z_error = base_z - ref_base_z
+        if obs.shape[1] == 53:
+            base_z = obs[:, 48]
+            base_quat = obs[:, 49:53]
 
-        #Convert base quat to euler angles
-        base_ori = quat_to_euler_torch(base_quat)
+            # Get the base pose info
+            ref_base_z = 0.5 #TODO this value is hardcoded for now to avoid needing to collect the data yet again
+            base_z_error = base_z - ref_base_z
+
+            #Convert base quat to euler angles
+            base_ori = quat_to_euler_torch(base_quat)
+
+            base_z = base_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
+            base_z_error = base_z_error.unsqueeze(-1)  # Add a dimension to match concatenation requirements
 
         ref_projected_gravity = torch.tensor([0, 0, -1.0], device=obs.device, dtype=obs.dtype)
         projected_gravity_error = projected_gravity - ref_projected_gravity
 
         # Concatenate all these states into a single state vector
-        base_z_error = base_z_error.unsqueeze(-1)  # Add a dimension to match concatenation requirements
         velocity_commands_z = velocity_commands_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
 
     # Get the joint positions and velocities
@@ -90,7 +94,11 @@ def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
     if imu_task:
         state_obs = [joint_pos_parametrized, joint_vel, imu_ang_vel, imu_orientation]
     else:
-        state_obs = [joint_pos_parametrized, joint_vel, base_z_error, base_vel_error, base_ori, base_ang_vel_error, projected_gravity_error, a_joint_pos_parametrized]
+        if obs.shape[1] == 53:
+            # if using base z and quat
+            state_obs = [joint_pos_parametrized, joint_vel, base_z, base_vel, base_ori, base_ang_vel, projected_gravity]
+        else:
+            state_obs = [joint_pos_parametrized, joint_vel, base_vel, base_ang_vel, projected_gravity]
 
     x = torch.cat(state_obs, dim=1).to(dtype=obs.dtype)
 
@@ -122,7 +130,7 @@ def quat_to_euler_torch(quaternions):
 
     return torch.stack([roll, pitch, yaw], dim=-1)
 
-def extract_trained_model_info(state_dict) -> (int, int, bool, int):
+def extract_trained_model_info(state_dict, model_dir) -> (int, int, bool, int):
     """Extracts model information from a state_dict."""
     layers = 0
     hidden_units = 0
@@ -133,6 +141,12 @@ def extract_trained_model_info(state_dict) -> (int, int, bool, int):
         if ".obs_fn.net" in key:
             if "model.obs_fn.net.block_" in key and "weight" in key:
                 layers += 1
+            if "E-DAE" in model_dir:
+                if "model.obs_fn.net.block_0.linear_0" in key and "matrix" in key:
+                    state_dim = state_dict[key].shape[1]
+            else:
+                if "model.obs_fn.net.block_0" in key and "weight" in key:
+                    state_dim = state_dict[key].shape[1]
             if "linear_0" in key and "bias" in key:
                 hidden_units = state_dict[key].shape[0]
             if 'bias' in key and not has_bias:
@@ -142,7 +156,7 @@ def extract_trained_model_info(state_dict) -> (int, int, bool, int):
 
     layers += 1  # Add one for the head layer
 
-    return layers, hidden_units, has_bias, obs_state_dim
+    return layers, hidden_units, has_bias, obs_state_dim, state_dim
 
 def remove_state_dict_prefix(state_dict, prefix):
     new_state_dict = {}
@@ -187,6 +201,8 @@ def get_trained_dae_model(model_dir, imu_task):
     rep_z.name = "base_z"
     rep_euler_xyz = G.representations['euler_xyz']
 
+    num_layers, num_hidden_units, bias, obs_state_dim, state_dim = extract_trained_model_info(state_dict, model_dir)
+
     # Define the state type using the extracted representations
     if imu_task:
         state_reps = [rep_Q_js, rep_TqQ_js, rep_euler_xyz, rep_Rd]
@@ -194,10 +210,16 @@ def get_trained_dae_model(model_dir, imu_task):
         # state_type.size = sum(rep.size for rep in state_reps) + rep_Q_js.size  # Count duplicates twice
         state_type = FieldType(gspace, representations=state_reps)
     else:
-        state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz, rep_Rd, rep_Q_js]
-        state_type = FieldType(gspace, representations=state_reps)
-        state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size + rep_Rd.size + rep_Q_js.size  # Count duplicates twice
-        state_type = FieldType(gspace, representations=state_reps)
+        if state_dim == 49:
+            state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz, rep_Rd] #['joint_pos_S1', 'joint_vel', 'base_z', 'base_vel', 'base_ori', 'base_ang_vel', 'projected_gravity']
+            state_type = FieldType(gspace, representations=state_reps)
+            state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size + rep_Rd.size  # Count duplicates twice
+            state_type = FieldType(gspace, representations=state_reps)
+        else:
+            state_reps = [rep_Q_js, rep_TqQ_js, rep_Rd, rep_euler_xyz, rep_Rd] #['joint_pos_S1', 'joint_vel', 'base_vel', 'base_ang_vel', 'projected_gravity']
+            state_type = FieldType(gspace, representations=state_reps)
+            state_type.size = sum(rep.size for rep in state_reps) + rep_Rd.size  # Count duplicates twice
+            state_type = FieldType(gspace, representations=state_reps)
 
     dt = 0.02
     orth_w_match = re.search(r"Orth_w:([\d\.]+)", model_dir)
@@ -214,7 +236,6 @@ def get_trained_dae_model(model_dir, imu_task):
     if not "E-DAE" in model_dir:
         activation = class_from_name("torch.nn", activation)
 
-    num_layers, num_hidden_units, bias, obs_state_dim = extract_trained_model_info(state_dict)
     obs_fn_params = {'num_layers': num_layers, 'num_hidden_units': num_hidden_units, 'activation': activation, 'bias': bias, 'batch_norm': batch_norm}
 
     initial_rng_state = torch.get_rng_state()
@@ -251,13 +272,13 @@ def get_trained_dae_model(model_dir, imu_task):
     return model
 
 def main():
-    # model_dir = "experiments/test/S=forward_minus_0_4-OS=5-G=K4xC2-H=30-EH=30_E-DAE-Obs_w=1.0-Orth_w=0.0-Act=ELU-B=True-BN=False-LR=0.001-L=5-128_system=mini_cheetah/seed=399/"
-    model_dir = "experiments/test/S:2025-04-18_09-13-49-OS:5-G:K4xC2-H:30-EH:30_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=776/"
+    # model_dir = "experiments/test/S:2025-05-11_08-53-29-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=867"
+    model_dir = "experiments/test/S:2025-05-11_08-53-29-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=564"
 
     dha_dir = os.path.dirname(dha.__file__)
     model_dir = os.path.join(dha_dir, model_dir)
     try:
-        model = get_trained_dae_model(model_dir)
+        model = get_trained_dae_model(model_dir, False)
         print("Model loaded successfully!")
         print(model)
     except Exception as e:

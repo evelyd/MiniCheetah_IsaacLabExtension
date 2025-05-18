@@ -66,8 +66,9 @@ class LatentStateActorCritic(ActorCritic):
             else:
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
-        # last_actions = observations[:, 27:39]
-        # commands = observations[:, :3]
+        # last_actions = observations[:, 36:48]
+        # commands = observations[:, 9:12]
+        # z = torch.cat((last_actions, commands, s), dim=-1)
         z = torch.cat((observations, s), dim=-1)
         mean = self.actor(z)
         # compute standard deviation
@@ -92,8 +93,9 @@ class LatentStateActorCritic(ActorCritic):
             else:
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
-        # last_actions = observations[:, 27:39]
-        # commands = observations[:, :3]
+        # last_actions = observations[:, 36:48]
+        # commands = observations[:, 9:12]
+        # z = torch.cat((last_actions, commands, s), dim=-1)
         z = torch.cat((observations, s), dim=-1)
         actions_mean = self.actor(z)
         return actions_mean
@@ -111,8 +113,9 @@ class LatentStateActorCritic(ActorCritic):
                 # DAE model
                 s = self.dae_model.obs_fn(x_normed)
         # Concatenate the latent state with the observations
-        # last_actions = critic_observations[:, 27:39]
-        # commands = critic_observations[:, :3]
+        # last_actions = critic_observations[:, 36:48]
+        # commands = critic_observations[:, 9:12]
+        # z = torch.cat((last_actions, commands, s), dim=-1)
         z = torch.cat((critic_observations, s), dim=-1)
         value = self.critic(z)
         return value
