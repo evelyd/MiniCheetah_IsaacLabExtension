@@ -94,6 +94,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
+    if args_cli.seed is None:
+        # set the seed to a random value
+        agent_cfg.seed = torch.randint(0, 2**32 - 1, (1,)).item()
+    input(f"[INFO] Using seed: {agent_cfg.seed} for environment.")
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
