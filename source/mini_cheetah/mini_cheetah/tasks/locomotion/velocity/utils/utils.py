@@ -3,8 +3,11 @@ import torch
 import os
 import glob
 import dha
+import numpy as np
 from dha.nn.EquivDynamicsAutoencoder import EquivDAE
 from dha.nn.DynamicsAutoEncoder import DAE
+from dha.nn.ControlledDynamicsAutoEncoder import ControlledDAE
+from dha.nn.ControlledEquivDynamicsAutoencoder import ControlledEquivDAE
 from dha.utils.mysc import class_from_name
 from morpho_symm.utils.robot_utils import load_symmetric_system
 from morpho_symm.utils.rep_theory_utils import group_rep_from_gens
@@ -14,95 +17,57 @@ from escnn.nn import FieldType
 
 import re
 
-def get_state_action_from_obs(obs, joint_order_indices, q0, imu_task):
+def compute_joint_pos_obs(q_js_ms_rel, q0_isaaclab, q0, joint_order_indices):
+    q_js_ms = q_js_ms_rel[:, joint_order_indices] + q0_isaaclab[joint_order_indices] + q0[7:]  # Add offset to the measurements from UMich
+    cos_q_js, sin_q_js = torch.cos(q_js_ms), torch.sin(q_js_ms)  # convert from angle to unit circle parametrization
+    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
+    q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
+    q_js_unit_circle_t = q_js_unit_circle_t.reshape(q_js_unit_circle_t.shape[0], -1)
+    joint_pos_S1 = q_js_unit_circle_t  # Joints in angle not unit circle representation
+    joint_pos = q_js_ms  # Joints in angle representation
+    return joint_pos_S1, joint_pos
+
+def get_state_action_from_obs(obs, action, joint_order_indices, q0):
     """
     Takes an observation from the observation class and extracts the system state and action vectors.
 
     Puts the state in the correct form for use in the DAE model.
 
-    State vector is composed as: $x = [q, \dot q, z, v, o, \omega] \in \mathbb R^{46}$
+    State vector is composed as: $x = [q, \dot q, v, \omega, a] \in \mathbb R^{46}$
     """
 
     # Define the default joint positions in Isaaclab
     q0_isaaclab = torch.tensor([0.10000000149011612, -0.10000000149011612, 0.10000000149011612, -0.10000000149011612, -0.800000011920929, -0.800000011920929, -0.800000011920929, -0.800000011920929, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716, 1.6200000047683716], device=obs.device, dtype=obs.dtype) #TODO this is hardcoded, if the defaults change then I have to change this too
 
-    if imu_task:
-        joint_pos_rel = obs[:, 3:15]
-        joint_vel = obs[:, 15:27]
-        imu_ang_vel = obs[:, 39:42]
-        imu_orientation = obs[:, 42:46]
+    # Assume obs is ['joint_pos_S1', 'joint_vel', 'base_vel', 'base_ang_vel', 'projected_gravity', 'a_joint_pos_S1', 'velocity_commands_xy', 'velocity_commands_z']
+    base_vel = obs[:, :3]
+    base_ang_vel = obs[:, 3:6]
+    projected_gravity = obs[:, 6:9]
+    velocity_commands_xy = obs[:, 9:11] # Rep: Rd for xy, euler xyz for heading? idk
+    velocity_commands_z = obs[:, 11].unsqueeze(-1) # Rep: Rd for xy, euler xyz for heading? idk
+    joint_pos_rel = obs[:, 12:24]
+    joint_vel = obs[:, 24:36]
+    action_joint_pos = obs[:, 36:48]
 
-    else:
-        base_vel = obs[:, :3]
-        base_ang_vel = obs[:, 3:6]
-        projected_gravity = obs[:, 6:9]
-        velocity_commands_xy = obs[:, 9:11] # Rep: Rd for xy, euler xyz for heading? idk
-        velocity_commands_z = obs[:, 11].unsqueeze(-1) # Rep: Rd for xy, euler xyz for heading? idk
-        joint_pos_rel = obs[:, 12:24]
-        joint_vel = obs[:, 24:36]
-        action_joint_pos = obs[:, 36:48]
-
-        ref_base_lin_vel = torch.hstack([velocity_commands_xy, torch.zeros((velocity_commands_xy.shape[0], 1), device=obs.device)]) # set ref lin z vel to 0
-        base_vel_error = base_vel - ref_base_lin_vel
-
-        ref_base_ang_vel = torch.hstack([torch.zeros((base_ang_vel.shape[0], 2), device=obs.device), velocity_commands_z])
-        base_ang_vel_error = base_ang_vel - ref_base_ang_vel
-
-        if obs.shape[1] == 53:
-            base_z = obs[:, 48]
-            base_quat = obs[:, 49:53]
-
-            # Get the base pose info
-            ref_base_z = 0.5 #TODO this value is hardcoded for now to avoid needing to collect the data yet again
-            base_z_error = base_z - ref_base_z
-
-            #Convert base quat to euler angles
-            base_ori = quat_to_euler_torch(base_quat)
-
-            base_z = base_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
-            base_z_error = base_z_error.unsqueeze(-1)  # Add a dimension to match concatenation requirements
-
-        ref_projected_gravity = torch.tensor([0, 0, -1.0], device=obs.device, dtype=obs.dtype)
-        projected_gravity_error = projected_gravity - ref_projected_gravity
-
-        # Concatenate all these states into a single state vector
-        velocity_commands_z = velocity_commands_z.unsqueeze(-1)  # Add a dimension to match concatenation requirements
+    # Assume action is ['current_action_S1']
+    current_action_S1, _ = compute_joint_pos_obs(action, q0_isaaclab, q0, joint_order_indices)
 
     # Get the joint positions and velocities
-    joint_pos = joint_pos_rel + q0_isaaclab  # Compute the absolute joint positions
-    # Reorder joint positions
-    joint_pos_reordered = joint_pos[:, joint_order_indices]
-    # Add offset to the measurements (necessary for symmetry group)
-    joint_pos_reordered += q0[7:]
-    # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format
-    cos_q_js, sin_q_js = torch.cos(joint_pos_reordered), torch.sin(joint_pos_reordered)
-    q_js_unit_circle_t = torch.stack([cos_q_js, sin_q_js], axis=2)
-    joint_pos_parametrized = q_js_unit_circle_t.reshape(q_js_unit_circle_t.shape[0], -1)
+    joint_pos_S1, _ = compute_joint_pos_obs(joint_pos_rel, q0_isaaclab, q0, joint_order_indices)
 
     # Reorder joint velocities
     joint_vel = joint_vel[:, joint_order_indices]
 
-    if not imu_task:
-        # Reorder action joint positions to match the morphosymm order
-        action_joint_pos = action_joint_pos[:, joint_order_indices] # the action joint positions are already absolute
-        action_joint_pos = action_joint_pos + q0[7:]  # Add offset to the measurements
-        cos_a_js, sin_a_js = torch.cos(action_joint_pos), torch.sin(action_joint_pos)  # convert from angle to unit circle parametrization
-        # Define joint positions [q1, q2, ..., qn] -> [cos(q1), sin(q1), ..., cos(qn), sin(qn)] format.
-        a_js_unit_circle_t = torch.stack([cos_a_js, sin_a_js], axis=2)
-        a_joint_pos_parametrized = a_js_unit_circle_t.reshape(a_js_unit_circle_t.shape[0], -1)
+    # Parametrize past action joint positions
+    a_joint_pos_S1, _ = compute_joint_pos_obs(action_joint_pos, q0_isaaclab, q0, joint_order_indices)
 
-    if imu_task:
-        state_obs = [joint_pos_parametrized, joint_vel, imu_ang_vel, imu_orientation]
-    else:
-        if obs.shape[1] == 53:
-            # if using base z and quat
-            state_obs = [joint_pos_parametrized, joint_vel, base_z, base_vel, base_ori, base_ang_vel, projected_gravity]
-        else:
-            state_obs = [joint_pos_parametrized, joint_vel, base_vel, base_ang_vel, projected_gravity]
+    state_obs = [joint_pos_S1, joint_vel, base_vel, base_ang_vel, projected_gravity, a_joint_pos_S1, velocity_commands_xy, velocity_commands_z]
+    action_obs = [current_action_S1]
 
     x = torch.cat(state_obs, dim=1).to(dtype=obs.dtype)
+    u = torch.cat(action_obs, dim=1).to(dtype=obs.dtype)
 
-    return x
+    return x, u
 
 def quat_to_euler_torch(quaternions):
     """
@@ -141,7 +106,7 @@ def extract_trained_model_info(state_dict, model_dir) -> (int, int, bool, int):
         if ".obs_fn.net" in key:
             if "model.obs_fn.net.block_" in key and "weight" in key:
                 layers += 1
-            if "E-DAE" in model_dir:
+            if "E-DAE" in model_dir or "EC-DAE" in model_dir:
                 if "model.obs_fn.net.block_0.linear_0" in key and "matrix" in key:
                     state_dim = state_dict[key].shape[1]
             else:
@@ -168,7 +133,7 @@ def remove_state_dict_prefix(state_dict, prefix):
             new_state_dict[key] = value
     return new_state_dict
 
-def get_trained_dae_model(model_dir, imu_task):
+def get_trained_dae_model(model_dir):
     """
     Load the trained DAE model.
 
@@ -199,27 +164,25 @@ def get_trained_dae_model(model_dir, imu_task):
     rep_TqQ_js = G.representations['TqQ_js']
     rep_z = group_rep_from_gens(G, rep_H={h: rep_Rd(h)[2, 2].reshape((1, 1)) for h in G.elements if h != G.identity})
     rep_z.name = "base_z"
+    rep_xy = group_rep_from_gens(G, rep_H={h: rep_Rd(h)[:2, :2].reshape((2, 2)) for h in G.elements if h != G.identity})
+    rep_xy.name = "base_xy"
     rep_euler_xyz = G.representations['euler_xyz']
+    rep_euler_z = group_rep_from_gens(G, rep_H={h: rep_euler_xyz(h)[2, 2].reshape((1, 1)) for h in G.elements if h != G.identity})
+    rep_euler_z.name = "euler_z"
 
     num_layers, num_hidden_units, bias, obs_state_dim, state_dim = extract_trained_model_info(state_dict, model_dir)
 
-    # Define the state type using the extracted representations
-    if imu_task:
-        state_reps = [rep_Q_js, rep_TqQ_js, rep_euler_xyz, rep_Rd]
-        state_type = FieldType(gspace, representations=state_reps)
-        # state_type.size = sum(rep.size for rep in state_reps) + rep_Q_js.size  # Count duplicates twice
-        state_type = FieldType(gspace, representations=state_reps)
-    else:
-        if state_dim == 49:
-            state_reps = [rep_Q_js, rep_TqQ_js, rep_z, rep_Rd, rep_euler_xyz, rep_euler_xyz, rep_Rd] #['joint_pos_S1', 'joint_vel', 'base_z', 'base_vel', 'base_ori', 'base_ang_vel', 'projected_gravity']
-            state_type = FieldType(gspace, representations=state_reps)
-            state_type.size = sum(rep.size for rep in state_reps) + rep_euler_xyz.size + rep_Rd.size  # Count duplicates twice
-            state_type = FieldType(gspace, representations=state_reps)
-        else:
-            state_reps = [rep_Q_js, rep_TqQ_js, rep_Rd, rep_euler_xyz, rep_Rd] #['joint_pos_S1', 'joint_vel', 'base_vel', 'base_ang_vel', 'projected_gravity']
-            state_type = FieldType(gspace, representations=state_reps)
-            state_type.size = sum(rep.size for rep in state_reps) + rep_Rd.size  # Count duplicates twice
-            state_type = FieldType(gspace, representations=state_reps)
+    # Define the state and action type using the extracted representations
+    state_reps = [rep_Q_js, rep_TqQ_js, rep_Rd, rep_euler_xyz, rep_Rd, rep_Q_js, rep_xy, rep_euler_z] #['joint_pos_S1', 'joint_vel', 'base_vel', 'base_ang_vel', 'projected_gravity', 'a_joint_pos_S1', 'velocity_commands_xy', 'velocity_commands_z']
+    state_type = FieldType(gspace, representations=state_reps)
+    state_type.size = sum(rep.size for rep in state_reps) + rep_Q_js.size + rep_Rd.size  # Count duplicates twice
+    state_type = FieldType(gspace, representations=state_reps)
+    # action_reps = [rep_xy, rep_euler_z]  # ['velocity_commands_xy', 'velocity_commands_z']
+    # action_type = FieldType(gspace, representations=action_reps)
+    # action_type.size = sum(rep.size for rep in action_reps)
+    action_reps = [rep_Q_js]  # ['current_actions_S1']
+    action_type = FieldType(gspace, representations=action_reps)
+    action_type.size = sum(rep.size for rep in action_reps)
 
     dt = 0.02
     orth_w_match = re.search(r"Orth_w:([\d\.]+)", model_dir)
@@ -233,7 +196,7 @@ def get_trained_dae_model(model_dir, imu_task):
     activation = obs_pred_w_match.group(1) if act_match else 'ELU'
     batch_norm = False
 
-    if not "E-DAE" in model_dir:
+    if not "E-DAE" in model_dir and not "EC-DAE" in model_dir:
         activation = class_from_name("torch.nn", activation)
 
     obs_fn_params = {'num_layers': num_layers, 'num_hidden_units': num_hidden_units, 'activation': activation, 'bias': bias, 'batch_norm': batch_norm}
@@ -250,7 +213,29 @@ def get_trained_dae_model(model_dir, imu_task):
             group_avg_trick=group_avg_trick,
             state_dependent_obs_dyn=state_dependent_obs_dyn,
             enforce_constant_fn=enforce_constant_fn,
-            # reuse_input_observable=cfg.model.reuse_input_observable,
+        )
+    elif "EC-DAE" in model_dir:
+        model = ControlledEquivDAE(
+            state_rep=state_type.representation,
+            action_rep=action_type.representation,
+            obs_state_dim=obs_state_dim,
+            dt=dt,
+            orth_w=orth_w,
+            obs_fn_params=obs_fn_params,
+            group_avg_trick=group_avg_trick,
+            state_dependent_obs_dyn=state_dependent_obs_dyn,
+            enforce_constant_fn=enforce_constant_fn,
+        )
+    elif "C-DAE" in model_dir:
+        model = ControlledDAE(
+            state_dim=state_type.size,
+            action_dim=action_type.size,
+            obs_state_dim=obs_state_dim,
+            dt=dt,
+            obs_pred_w=obs_pred_w,
+            orth_w=orth_w,
+            obs_fn_params=obs_fn_params,
+            enforce_constant_fn=enforce_constant_fn,
         )
     else:
         corr_w = 0.0
@@ -263,7 +248,6 @@ def get_trained_dae_model(model_dir, imu_task):
             corr_w=corr_w,
             obs_fn_params=obs_fn_params,
             enforce_constant_fn=enforce_constant_fn,
-            # reuse_input_observable=cfg.model.reuse_input_observable,
         )
 
     torch.set_rng_state(initial_rng_state)
@@ -271,18 +255,127 @@ def get_trained_dae_model(model_dir, imu_task):
 
     return model
 
+def get_stats(model_path, device):
+
+        dha_dir = os.path.dirname(dha.__file__)
+        model_dir = os.path.join(dha_dir, model_path)
+        norm_dir = os.path.join(model_dir, "state_mean_var.npy")
+        # Load state_mean and state_var from the npy file
+        norm_data = np.load(norm_dir, allow_pickle=True).item()
+
+        # Extract state_mean and state_var values
+        state_mean_values = norm_data["state_mean"]
+        state_var_values = norm_data["state_var"]
+        state_mean = torch.tensor(state_mean_values, device=device).float()
+        state_std = torch.sqrt(torch.tensor(state_var_values, device=device)).float()
+
+        # Extract action_mean and action_var values
+        if "C-DAE" in model_path:
+            # C-DAE model
+            action_mean_values = norm_data["action_mean"]
+            action_var_values = norm_data["action_var"]
+            action_mean = torch.tensor(action_mean_values, device=device).float()
+            action_std = torch.sqrt(torch.tensor(action_var_values, device=device)).float()
+        else:
+            action_mean, action_std = None, None
+
+        return state_mean, state_std, action_mean, action_std
+
+def get_pybullet_q0(device):
+    from pybullet_utils.bullet_client import BulletClient
+    import pybullet
+    robot, G = load_symmetric_system(robot_name="mini_cheetah")
+    bullet_client = BulletClient(connection_mode=pybullet.DIRECT)
+    robot.configure_bullet_simulation(bullet_client=bullet_client)
+    # Get zero reference position.
+    q0, _ = robot.pin2sim(robot._q0, np.zeros(robot.nv))
+    q0 = torch.tensor(q0).to(device)
+
+    return q0
+
+def get_joint_order_indices():
+    usd_joint_order = ['FL_hip_joint', 'FR_hip_joint', 'RL_hip_joint', 'RR_hip_joint', 'FL_thigh_joint', 'FR_thigh_joint', 'RL_thigh_joint', 'RR_thigh_joint', 'FL_calf_joint', 'FR_calf_joint', 'RL_calf_joint', 'RR_calf_joint']
+    joint_order_for_morphosymm = ['FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint']
+    joint_order_indices = [usd_joint_order.index(joint) for joint in joint_order_for_morphosymm]
+    return joint_order_indices
+
+def get_latent_state(observations, action, model_path, dae_model, joint_order_indices, q0, data_state_mean, data_state_std, data_action_mean, data_action_std):
+        with torch.no_grad():  # Ensure obs_fn doesn't track gradients
+            x, u = get_state_action_from_obs(observations, action, joint_order_indices, q0)
+            x_normed = (x - data_state_mean) / data_state_std
+            u_normed = (u - data_action_mean) / data_action_std
+            if "E-DAE" in model_path or "EC-DAE" in model_path:
+                # E-DAE model
+                symmetric_x = dae_model.state_type(x_normed)
+                s = dae_model.obs_fn(symmetric_x).tensor
+            else:
+                # DAE model
+                s = dae_model.obs_fn(x_normed)
+        return s, x_normed, u_normed
+
+def normalize_state(state_mean, state_std, state, next_state):
+    """
+    Normalize the state tensors using the provided means and standard deviations.
+    """
+    state_normed = (state - state_mean) / state_std
+    next_state_normed = (next_state - state_mean) / state_std
+    return state_normed, next_state_normed
+
+def normalize(state_mean, state_std, action_mean, action_std, state, action, next_state):
+    """
+    Normalize the state and action tensors using the provided means and standard deviations.
+    """
+    state_normed = (state - state_mean) / state_std
+    action_normed = (action - action_mean) / action_std
+    next_state_normed = (next_state - state_mean) / state_std
+    return state_normed, action_normed, next_state_normed
+
+def denormalize(state_mean, state_std, state_normed):
+    """
+    Denormalize the state tensor using the provided means and standard deviations.
+    """
+    state = state_normed * state_std + state_mean
+    return state
+
 def main():
-    # model_dir = "experiments/test/S:2025-05-11_08-53-29-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=867"
-    model_dir = "experiments/test/S:2025-05-11_08-53-29-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=564"
+    # model_dir = "/home/edelia-iit.local/git/DynamicsHarmonicsAnalysis/dha/experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_C-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=711"
+    model_dir = "/home/edelia-iit.local/git/DynamicsHarmonicsAnalysis/dha/experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_EC-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=401"
 
     dha_dir = os.path.dirname(dha.__file__)
     model_dir = os.path.join(dha_dir, model_dir)
-    try:
-        model = get_trained_dae_model(model_dir, False)
-        print("Model loaded successfully!")
-        print(model)
-    except Exception as e:
-        print(f"An error occurred: {e}")
+
+    model = get_trained_dae_model(model_dir)
+    A = model.obs_space_dynamics.transfer_op.weight
+    A_bias = model.obs_space_dynamics.transfer_op.bias
+    B = model.obs_space_dynamics.control_op.weight
+    B_bias = model.obs_space_dynamics.control_op.bias
+    print("Model loaded successfully!")
+    print(model)
+
+    if "C-DAE" in model_dir:
+        # Try to compute latent dynamics
+        obs = torch.randn(1, model.obs_state_dim)  # Example observation
+
+        # Create a mapping from current joint order to morphosymm order
+        joint_order_indices = get_joint_order_indices()
+
+        # Create a variable to hold the q0 for the joint offset that is needed by the symmetry groups
+        robot, G = load_symmetric_system(robot_name="mini_cheetah")
+        from pybullet_utils.bullet_client import BulletClient
+        import pybullet
+        bullet_client = BulletClient(connection_mode=pybullet.DIRECT)
+        robot.configure_bullet_simulation(bullet_client=bullet_client)
+        # Get zero reference position.
+
+        q0, _ = robot.pin2sim(robot._q0, np.zeros(robot.nv))
+        q0 = torch.tensor(q0)
+
+        state, action = get_state_action_from_obs(obs, joint_order_indices, q0)
+
+        # Compute the next state given the latent state
+        my_action = torch.randn(1, 1, model.action_dim)  # Example action
+        next_state, next_latent_state = model.forecast(state, my_action)
+        assert torch.allclose(next_latent_state[:, 0, :], model.obs_fn(state)), "The first element in the predicted states shoudl be the current state."
 
 if __name__ == "__main__":
     main()
