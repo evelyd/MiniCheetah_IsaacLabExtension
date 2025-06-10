@@ -30,6 +30,8 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 # no base pose in obs, controlled DAE 05-16_16-16-41, trained with state ['joint_pos_S1', 'joint_vel', 'base_vel', 'base_ang_vel', 'projected_gravity', 'a_joint_pos_S1', 'velocity_commands_xy', 'velocity_commands_z'], action ['current_action_S1']
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_C-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=514", help="Directory path to the DAE model file.")
 parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_EC-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=401", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-06-09_11-23-53-OS:5-G:K4xC2-H:5-EH:5_C-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=687", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-06-09_20-02-02-OS:5-G:K4xC2-H:5-EH:5_C-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=032", help="Directory path to the DAE model file.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
