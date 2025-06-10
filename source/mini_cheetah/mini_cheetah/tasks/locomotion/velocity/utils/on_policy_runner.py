@@ -11,11 +11,11 @@ import time
 import torch
 from collections import deque
 
-import rsl_rl
-from rsl_rl.algorithms import PPO
-from rsl_rl.env import VecEnv
-from rsl_rl.modules import ActorCritic, ActorCriticRecurrent, EmpiricalNormalization
-from rsl_rl.utils import store_code_state
+import mini_cheetah.rsl_rl
+from mini_cheetah.rsl_rl.algorithms import PPO
+from mini_cheetah.rsl_rl.env import VecEnv
+from mini_cheetah.rsl_rl.modules import ActorCritic, ActorCriticRecurrent, EmpiricalNormalization
+from mini_cheetah.rsl_rl.utils import store_code_state
 
 from mini_cheetah.tasks.locomotion.velocity.utils.latent_state_wrapper import LatentStateActorCritic
 

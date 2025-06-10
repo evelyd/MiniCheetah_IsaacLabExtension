@@ -26,12 +26,15 @@ parser.add_argument("--seed", type=int, default=None, help="Seed used for the en
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 
 # only state, no command/action obs, v1 data from multiple models, but from training with full obs minus z/phi: 05-16_16-16-41
-parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=462", help="Directory path to the DAE model file.")
+# parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=462", help="Directory path to the DAE model file.")
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=813", help="Directory path to the DAE model file.")
 
 # only state, no command/action obs, v1 data from multiple models, but from training with full obs incl. z/phi: 05-16_16-22-18
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-22-18-OS:5-G:K4xC2-H:5-EH:5_DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=526", help="Directory path to the DAE model file.")
 # parser.add_argument("--dae_dir", type=str, default="experiments/test/S:2025-05-16_16-22-18-OS:5-G:K4xC2-H:5-EH:5_E-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=227", help="Directory path to the DAE model file.")
+
+parser.add_argument("--dae_dir", type=str, default="/home/edelia-iit.local/git/DynamicsHarmonicsAnalysis/dha/experiments/test/S:2025-05-16_16-16-41-OS:5-G:K4xC2-H:5-EH:5_C-DAE-Obs_w:1.0-Orth_w:0.0-Act:ELU-B:True-BN:False-LR:0.001-L:5-128_system=mini_cheetah/seed=711", help="Directory path to the DAE model file.")
+
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -57,7 +60,7 @@ import os
 import torch
 from datetime import datetime
 
-# from rsl_rl.runners import OnPolicyRunner
+# from mini_cheetah.rsl_rl.runners import OnPolicyRunner
 from mini_cheetah.tasks.locomotion.velocity.utils import LatentStateOnPolicyRunner
 
 from isaaclab.envs import (
@@ -133,18 +136,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # wrap around environment for rsl-rl
     env = RslRlVecEnvWrapper(env)
 
-    # Create a mapping from current joint order to morphosymm order
-    usd_joint_order = ['FL_hip_joint', 'FR_hip_joint', 'RL_hip_joint', 'RR_hip_joint', 'FL_thigh_joint', 'FR_thigh_joint', 'RL_thigh_joint', 'RR_thigh_joint', 'FL_calf_joint', 'FR_calf_joint', 'RL_calf_joint', 'RR_calf_joint']
-    joint_order_for_morphosymm = ['FL_hip_joint', 'FL_thigh_joint', 'FL_calf_joint', 'FR_hip_joint', 'FR_thigh_joint', 'FR_calf_joint', 'RL_hip_joint', 'RL_thigh_joint', 'RL_calf_joint', 'RR_hip_joint', 'RR_thigh_joint', 'RR_calf_joint']
-    joint_order_indices = [usd_joint_order.index(joint) for joint in joint_order_for_morphosymm]
-
     # Define the policy parameters dictionary
     policy_params = agent_cfg.policy.to_dict()  # Start with the default policy config
     policy_params.update({
         "class_name": "LatentStateActorCritic",
-        "joint_order_indices": joint_order_indices,
         "dae_dir": args_cli.dae_dir,
-        "task_name": args_cli.task,
         "device": agent_cfg.device,
     })
 
